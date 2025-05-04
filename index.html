@@ -43,6 +43,15 @@
       color: #555;
       margin-bottom: 5px;
     }
+    #status {
+      margin: 10px 0;
+      padding: 10px;
+      background: #e9f5e9;
+      border: 1px solid #4CAF50;
+      border-radius: 5px;
+      color: #333;
+      white-space: pre-line;
+    }
   </style>
 </head>
 <body>
@@ -58,6 +67,7 @@
     <button onclick="shareCodes()">Share</button>
   </div>
 
+  <div id="status">⏳ 대기 중...</div>
   <div id="code-list"></div>
 
   <script>
@@ -65,34 +75,47 @@
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
     const codeListDiv = document.getElementById("code-list");
+    const statusDiv = document.getElementById("status");
 
     let scanning = false;
     let intervalId = null;
     const codeMap = new Map(); // timestamp → code
 
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-      .then(stream => (video.srcObject = stream))
-      .catch(err => alert("카메라 접근 실패: " + err));
+      .then(stream => {
+        video.srcObject = stream;
+        setStatus("📷 카메라 연결 성공");
+      })
+      .catch(err => setStatus("❌ 카메라 접근 실패: " + err));
+
+    function setStatus(text) {
+      statusDiv.innerText = text;
+    }
 
     function startScan() {
       if (scanning) return;
       scanning = true;
+      setStatus("🔄 스캔 시작됨 (3초마다 자동 인식)");
       intervalId = setInterval(captureAndRecognize, 3000);
     }
 
     function stopScan() {
       scanning = false;
       clearInterval(intervalId);
+      setStatus("⏸️ 스캔 중단됨");
     }
 
     function captureAndRecognize() {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const image = canvas.toDataURL("image/png");
+      setStatus("📸 이미지 캡처됨, OCR 처리 중...");
 
       Tesseract.recognize(image, "eng")
         .then(result => {
           const rawText = result.data.text;
-          const matches = rawText.match(/\b[1-9A-NP-Z]{10}\b/g); // 0과 O 제외
+          setStatus("🧠 OCR 결과:\n" + rawText);
+
+          const matches = rawText.match(/\b[1-9A-NP-Z]{10}\b/g); // 10자리, 0/O 제외
 
           if (matches) {
             matches.forEach(code => {
@@ -105,7 +128,9 @@
             });
           }
         })
-        .catch(err => console.error("OCR 오류:", err));
+        .catch(err => {
+          setStatus("❌ OCR 실패: " + err);
+        });
     }
 
     function renderCodes() {
