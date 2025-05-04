@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Coupon OCR Scanner</title>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 15px;
+      max-width: 600px;
+      margin: auto;
+    }
+    video {
+      width: 100%;
+      border: 2px solid #4CAF50;
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+    .controls {
+      margin: 10px 0;
+    }
+    button {
+      margin-right: 5px;
+      padding: 10px;
+      font-size: 1em;
+    }
+    .code-card {
+      border: 1px solid #ccc;
+      background: #f9f9f9;
+      padding: 10px;
+      margin-bottom: 8px;
+      border-radius: 6px;
+    }
+    .code-card input {
+      width: 80%;
+      font-size: 1em;
+    }
+    .code-card button {
+      float: right;
+    }
+  </style>
+</head>
+<body>
+  <h2>📷 쿠폰 코드 자동 인식기</h2>
+  <video id="video" autoplay playsinline></video>
+  <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
+
+  <div class="controls">
+    <button onclick="startScan()">Start</button>
+    <button onclick="stopScan()">Stop</button>
+    <button onclick="exportCodes()">Export</button>
+    <button onclick="copyToClipboard()">Copy</button>
+  </div>
+
+  <div id="code-list"></div>
+
+  <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const codeListDiv = document.getElementById("code-list");
+
+    let scanning = false;
+    let intervalId = null;
+    const codeMap = new Map(); // timestamp → code
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+      .then(stream => (video.srcObject = stream))
+      .catch(err => alert("카메라 접근 실패: " + err));
+
+    function startScan() {
+      if (scanning) return;
+      scanning = true;
+      intervalId = setInterval(captureAndRecognize, 3000);
+    }
+
+    function stopScan() {
+      scanning = false;
+      clearInterval(intervalId);
+    }
+
+    function captureAndRecognize() {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const image = canvas.toDataURL("image/png");
+
+      Tesseract.recognize(image, "eng")
+        .then(result => {
+          const rawText = result.data.text;
+          const matches = rawText.match(/\b[1-9A-NP-Z]{10}\b/g); // 0과 O 제외
+
+          if (matches) {
+            matches.forEach(code => {
+              if (![...codeMap.values()].includes(code)) {
+                const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 15);
+                const key = `${timestamp}_${String(codeMap.size).padStart(3, "0")}`;
+                codeMap.set(key, code);
+                renderCodes();
+              }
+            });
+          }
+        })
+        .catch(err => console.error("OCR 오류:", err));
+    }
+
+    function renderCodes() {
+      codeListDiv.innerHTML = "";
+      [...codeMap.entries()].forEach(([key, code]) => {
+        const div = document.createElement("div");
+        div.className = "code-card";
+
+        const input = document.createElement("input");
+        input.value = code;
+        input.onchange = () => codeMap.set(key, input.value);
+
+        const span = document.createElement("span");
+        span.textContent = key;
+
+        const del = document.createElement("button");
+        del.textContent = "🗑";
+        del.onclick = () => {
+          codeMap.delete(key);
+          renderCodes();
+        };
+
+        div.appendChild(span);
+        div.appendChild(document.createElement("br"));
+        div.appendChild(input);
+        div.appendChild(del);
+        codeListDiv.appendChild(div);
+      });
+    }
+
+    function exportCodes() {
+      const text = [...codeMap.entries()].map(([key, code]) => `${key} : ${code}`).join("\n");
+      const blob = new Blob([text], { type: "text/plain" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "coupon_codes.txt";
+      link.click();
+    }
+
+    function copyToClipboard() {
+      const text = [...codeMap.entries()].map(([key, code]) => `${key} : ${code}`).join("\n");
+      navigator.clipboard.writeText(text)
+        .then(() => alert("복사 완료!"))
+        .catch(err => alert("복사 실패: " + err));
+    }
+  </script>
+</body>
+</html>
