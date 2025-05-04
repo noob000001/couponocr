@@ -3,29 +3,34 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Coupon OCR Scanner</title>
+  <title>커스텀 OCR 쿠폰 인식기</title>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
   <style>
     body {
       font-family: sans-serif;
       padding: 15px;
-      max-width: 600px;
+      max-width: 640px;
       margin: auto;
     }
-    video {
+    video, canvas {
       width: 100%;
       border: 2px solid #4CAF50;
-      border-radius: 8px;
+      border-radius: 6px;
+      display: block;
       margin-bottom: 10px;
     }
-    .controls {
-      margin: 10px 0;
+    #overlay {
+      position: absolute;
+      border: 2px dashed red;
+      pointer-events: none;
     }
-    button {
+    .controls, .status {
+      margin-bottom: 10px;
+    }
+    button, select {
       margin-right: 5px;
-      padding: 10px;
+      padding: 8px 12px;
       font-size: 1em;
-      cursor: pointer;
     }
     .code-card {
       border: 1px solid #ccc;
@@ -41,25 +46,19 @@
     .code-card .meta {
       font-size: 0.9em;
       color: #555;
-      margin-bottom: 5px;
-    }
-    #status {
-      margin: 10px 0;
-      padding: 10px;
-      background: #e9f5e9;
-      border: 1px solid #4CAF50;
-      border-radius: 5px;
-      color: #333;
-      white-space: pre-line;
     }
   </style>
 </head>
 <body>
-  <h2>📷 쿠폰 코드 자동 인식기</h2>
+  <h2>🎯 커스텀 OCR 쿠폰 인식기</h2>
+  
   <video id="video" autoplay playsinline></video>
-  <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
-
+  <canvas id="canvas" width="640" height="480"></canvas>
   <div class="controls">
+    자리수 선택: 
+    <select id="lengthSelect">
+      ${[...Array(7)].map((_, i) => `<option value="${i+8}">${i+8}자리</option>`).join('')}
+    </select>
     <button onclick="startScan()">Start</button>
     <button onclick="stopScan()">Stop</button>
     <button onclick="exportCodes()">Export</button>
@@ -67,7 +66,7 @@
     <button onclick="shareCodes()">Share</button>
   </div>
 
-  <div id="status">⏳ 대기 중...</div>
+  <div id="status" class="status">⏳ 대기 중...</div>
   <div id="code-list"></div>
 
   <script>
@@ -76,10 +75,14 @@
     const ctx = canvas.getContext("2d");
     const codeListDiv = document.getElementById("code-list");
     const statusDiv = document.getElementById("status");
+    const lengthSelect = document.getElementById("lengthSelect");
 
     let scanning = false;
     let intervalId = null;
-    const codeMap = new Map(); // timestamp → code
+    const codeMap = new Map();
+
+    let startX, startY, endX, endY;
+    let dragging = false;
 
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
       .then(stream => {
@@ -92,10 +95,34 @@
       statusDiv.innerText = text;
     }
 
+    // 드래그로 사각형 영역 지정
+    canvas.addEventListener("mousedown", e => {
+      const rect = canvas.getBoundingClientRect();
+      startX = e.clientX - rect.left;
+      startY = e.clientY - rect.top;
+      dragging = true;
+    });
+
+    canvas.addEventListener("mouseup", e => {
+      if (!dragging) return;
+      const rect = canvas.getBoundingClientRect();
+      endX = e.clientX - rect.left;
+      endY = e.clientY - rect.top;
+      dragging = false;
+      drawSelection();
+    });
+
+    function drawSelection() {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height); // clear
+      ctx.strokeStyle = "red";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(startX, startY, endX - startX, endY - startY);
+    }
+
     function startScan() {
       if (scanning) return;
       scanning = true;
-      setStatus("🔄 스캔 시작됨 (3초마다 자동 인식)");
+      setStatus("🔄 스캔 시작됨 (3초마다 인식)");
       intervalId = setInterval(captureAndRecognize, 3000);
     }
 
@@ -106,31 +133,50 @@
     }
 
     function captureAndRecognize() {
+      if (startX == null || startY == null || endX == null || endY == null) {
+        setStatus("❗ 먼저 캔버스에 인식 영역을 지정해주세요.");
+        return;
+      }
+
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const image = canvas.toDataURL("image/png");
+      const w = endX - startX;
+      const h = endY - startY;
+      const cropped = ctx.getImageData(startX, startY, w, h);
+
+      const tempCanvas = document.createElement("canvas");
+      tempCanvas.width = w;
+      tempCanvas.height = h;
+      const tempCtx = tempCanvas.getContext("2d");
+      tempCtx.putImageData(cropped, 0, 0);
+
+      const imgData = tempCanvas.toDataURL("image/png");
+
       setStatus("📸 이미지 캡처됨, OCR 처리 중...");
 
-      Tesseract.recognize(image, "eng")
-        .then(result => {
-          const rawText = result.data.text;
-          setStatus("🧠 OCR 결과:\n" + rawText);
+      Tesseract.recognize(imgData, "eng", {
+        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789",
+        psm: 7
+      }).then(result => {
+        const rawText = result.data.text;
+        setStatus("🧠 OCR 결과:\n" + rawText);
 
-          const matches = rawText.match(/\b[1-9A-NP-Z]{10}\b/g); // 10자리, 0/O 제외
+        const length = parseInt(lengthSelect.value);
+        const regex = new RegExp(`\\b[1-9A-NP-Z]{${length}}\\b`, 'g');
+        const matches = rawText.match(regex);
 
-          if (matches) {
-            matches.forEach(code => {
-              if (![...codeMap.values()].includes(code)) {
-                const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 15);
-                const key = `${timestamp}_${String(codeMap.size).padStart(3, "0")}`;
-                codeMap.set(key, code);
-                renderCodes();
-              }
-            });
-          }
-        })
-        .catch(err => {
-          setStatus("❌ OCR 실패: " + err);
-        });
+        if (matches) {
+          matches.forEach(code => {
+            if (![...codeMap.values()].includes(code)) {
+              const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 15);
+              const key = `${timestamp}_${String(codeMap.size).padStart(3, "0")}`;
+              codeMap.set(key, code);
+              renderCodes();
+            }
+          });
+        }
+      }).catch(err => {
+        setStatus("❌ OCR 실패: " + err);
+      });
     }
 
     function renderCodes() {
@@ -181,7 +227,7 @@
       const text = [...codeMap.entries()].map(([key, code]) => `${key} : ${code}`).join("\n");
       if (navigator.share) {
         navigator.share({
-          title: "인식된 쿠폰 코드",
+          title: "쿠폰 코드",
           text: text
         }).catch(err => alert("공유 실패: " + err));
       } else {
