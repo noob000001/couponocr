@@ -19,11 +19,6 @@
       display: block;
       margin-bottom: 10px;
     }
-    #overlay {
-      position: absolute;
-      border: 2px dashed red;
-      pointer-events: none;
-    }
     .controls, .status {
       margin-bottom: 10px;
     }
@@ -47,17 +42,32 @@
       font-size: 0.9em;
       color: #555;
     }
+    #status {
+      white-space: pre-line;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background: #f4f4f4;
+      color: #333;
+    }
   </style>
 </head>
 <body>
   <h2>🎯 커스텀 OCR 쿠폰 인식기</h2>
-  
+
   <video id="video" autoplay playsinline></video>
   <canvas id="canvas" width="640" height="480"></canvas>
+
   <div class="controls">
-    자리수 선택: 
+    자리수:
     <select id="lengthSelect">
-      ${[...Array(7)].map((_, i) => `<option value="${i+8}">${i+8}자리</option>`).join('')}
+      <option value="8">8자리</option>
+      <option value="9">9자리</option>
+      <option value="10">10자리</option>
+      <option value="11">11자리</option>
+      <option value="12">12자리</option>
+      <option value="13">13자리</option>
+      <option value="14">14자리</option>
     </select>
     <button onclick="startScan()">Start</button>
     <button onclick="stopScan()">Stop</button>
@@ -66,7 +76,7 @@
     <button onclick="shareCodes()">Share</button>
   </div>
 
-  <div id="status" class="status">⏳ 대기 중...</div>
+  <div id="status">📡 대기 중입니다.</div>
   <div id="code-list"></div>
 
   <script>
@@ -84,10 +94,11 @@
     let startX, startY, endX, endY;
     let dragging = false;
 
+    // 카메라 연결
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
       .then(stream => {
         video.srcObject = stream;
-        setStatus("📷 카메라 연결 성공");
+        setStatus("✅ 카메라 연결 완료. 드래그로 OCR 영역을 지정하세요.");
       })
       .catch(err => setStatus("❌ 카메라 접근 실패: " + err));
 
@@ -95,7 +106,7 @@
       statusDiv.innerText = text;
     }
 
-    // 드래그로 사각형 영역 지정
+    // 드래그로 사각형 지정
     canvas.addEventListener("mousedown", e => {
       const rect = canvas.getBoundingClientRect();
       startX = e.clientX - rect.left;
@@ -103,24 +114,33 @@
       dragging = true;
     });
 
-    canvas.addEventListener("mouseup", e => {
+    canvas.addEventListener("mousemove", e => {
       if (!dragging) return;
       const rect = canvas.getBoundingClientRect();
       endX = e.clientX - rect.left;
       endY = e.clientY - rect.top;
-      dragging = false;
       drawSelection();
     });
 
+    canvas.addEventListener("mouseup", e => {
+      dragging = false;
+    });
+
     function drawSelection() {
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height); // clear
-      ctx.strokeStyle = "red";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(startX, startY, endX - startX, endY - startY);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      if (startX != null && endX != null) {
+        ctx.strokeStyle = "red";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(startX, startY, endX - startX, endY - startY);
+      }
     }
 
     function startScan() {
       if (scanning) return;
+      if (startX == null || startY == null || endX == null || endY == null) {
+        setStatus("❗ 먼저 OCR 영역을 지정해주세요. 캔버스를 드래그하세요.");
+        return;
+      }
       scanning = true;
       setStatus("🔄 스캔 시작됨 (3초마다 인식)");
       intervalId = setInterval(captureAndRecognize, 3000);
@@ -133,22 +153,20 @@
     }
 
     function captureAndRecognize() {
-      if (startX == null || startY == null || endX == null || endY == null) {
-        setStatus("❗ 먼저 캔버스에 인식 영역을 지정해주세요.");
+      drawSelection(); // 최신 프레임
+      const w = endX - startX;
+      const h = endY - startY;
+      if (w <= 0 || h <= 0) {
+        setStatus("❗ 유효한 OCR 영역을 다시 지정해주세요.");
         return;
       }
 
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const w = endX - startX;
-      const h = endY - startY;
       const cropped = ctx.getImageData(startX, startY, w, h);
-
       const tempCanvas = document.createElement("canvas");
       tempCanvas.width = w;
       tempCanvas.height = h;
       const tempCtx = tempCanvas.getContext("2d");
       tempCtx.putImageData(cropped, 0, 0);
-
       const imgData = tempCanvas.toDataURL("image/png");
 
       setStatus("📸 이미지 캡처됨, OCR 처리 중...");
@@ -160,10 +178,9 @@
         const rawText = result.data.text;
         setStatus("🧠 OCR 결과:\n" + rawText);
 
-        const length = parseInt(lengthSelect.value);
-        const regex = new RegExp(`\\b[1-9A-NP-Z]{${length}}\\b`, 'g');
+        const len = parseInt(lengthSelect.value);
+        const regex = new RegExp(`\\b[1-9A-NP-Z]{${len}}\\b`, "g");
         const matches = rawText.match(regex);
-
         if (matches) {
           matches.forEach(code => {
             if (![...codeMap.values()].includes(code)) {
@@ -174,9 +191,7 @@
             }
           });
         }
-      }).catch(err => {
-        setStatus("❌ OCR 실패: " + err);
-      });
+      }).catch(err => setStatus("❌ OCR 실패: " + err));
     }
 
     function renderCodes() {
@@ -208,30 +223,25 @@
     }
 
     function exportCodes() {
-      const text = [...codeMap.entries()].map(([key, code]) => `${key} : ${code}`).join("\n");
+      const text = [...codeMap.entries()].map(([k, c]) => `${k} : ${c}`).join("\n");
       const blob = new Blob([text], { type: "text/plain" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = "coupon_codes.txt";
-      link.click();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "coupon_codes.txt";
+      a.click();
     }
 
     function copyToClipboard() {
-      const text = [...codeMap.entries()].map(([key, code]) => `${key} : ${code}`).join("\n");
-      navigator.clipboard.writeText(text)
-        .then(() => alert("복사 완료!"))
-        .catch(err => alert("복사 실패: " + err));
+      const text = [...codeMap.entries()].map(([k, c]) => `${k} : ${c}`).join("\n");
+      navigator.clipboard.writeText(text).then(() => alert("📋 복사 완료"));
     }
 
     function shareCodes() {
-      const text = [...codeMap.entries()].map(([key, code]) => `${key} : ${code}`).join("\n");
+      const text = [...codeMap.entries()].map(([k, c]) => `${k} : ${c}`).join("\n");
       if (navigator.share) {
-        navigator.share({
-          title: "쿠폰 코드",
-          text: text
-        }).catch(err => alert("공유 실패: " + err));
+        navigator.share({ title: "쿠폰 코드", text }).catch(e => alert("공유 실패"));
       } else {
-        alert("이 브라우저는 공유 기능을 지원하지 않습니다.");
+        alert("이 브라우저는 공유를 지원하지 않습니다.");
       }
     }
   </script>
