@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ko">
+>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -18,11 +19,6 @@
       border-radius: 6px;
       display: block;
       margin-bottom: 10px;
-    }
-    #overlay {
-      position: absolute;
-      border: 2px dashed red;
-      pointer-events: none;
     }
     .controls, .status {
       margin-bottom: 10px;
@@ -64,9 +60,20 @@
   <canvas id="canvas" width="640" height="480"></canvas>
 
   <div class="controls">
-    자릿수 선택: 
+    자릿수 선택:
     <select id="lengthSelect">
-      ${[...Array(9)].map((_, i) => `<option value="${i + 8}">${i + 8}자리</option>`).join('')}
+      <!-- 8~16자리 옵션 생성 -->
+      <script>
+        document.addEventListener("DOMContentLoaded", () => {
+          const select = document.getElementById("lengthSelect");
+          for (let i = 8; i <= 16; i++) {
+            const option = document.createElement("option");
+            option.value = i;
+            option.textContent = `${i}자리`;
+            select.appendChild(option);
+          }
+        });
+      </script>
     </select>
     <button onclick="startScan()">Start</button>
     <button onclick="stopScan()">Stop</button>
@@ -96,8 +103,8 @@
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
       .then(stream => {
         video.srcObject = stream;
-        setStatus("✅ 카메라 연결됨. 캔버스를 드래그하여 영역을 지정하세요.");
-        drawFrame();
+        setStatus("✅ 카메라 연결됨. 캔버스를 드래그해서 OCR 영역을 지정하세요.");
+        requestAnimationFrame(drawFrame);
       })
       .catch(err => setStatus("❌ 카메라 접근 실패: " + err));
 
@@ -124,7 +131,7 @@
       dragging = false;
     });
 
-    // 실시간 붉은 사각형 표시
+    // 실시간 프레임 & 붉은 사각형 그리기
     function drawFrame() {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       if (startX != null && endX != null) {
@@ -190,7 +197,7 @@
             }
           });
         } else {
-          setStatus("⚠️ 인식된 코드 없음. 다시 시도해주세요.\n" + rawText);
+          setStatus("⚠️ 인식된 코드 없음. 다시 시도해주세요.");
         }
       }).catch(err => setStatus("❌ OCR 오류: " + err));
     }
