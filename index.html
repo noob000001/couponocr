@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>커스텀 OCR 쿠폰 인식기</title>
+  <title>쿠폰 OCR 인식기</title>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
   <style>
     body {
@@ -18,6 +18,11 @@
       border-radius: 6px;
       display: block;
       margin-bottom: 10px;
+    }
+    #overlay {
+      position: absolute;
+      border: 2px dashed red;
+      pointer-events: none;
     }
     .controls, .status {
       margin-bottom: 10px;
@@ -53,21 +58,15 @@
   </style>
 </head>
 <body>
-  <h2>🎯 커스텀 OCR 쿠폰 인식기</h2>
+  <h2>📷 쿠폰 코드 자동 인식기</h2>
 
   <video id="video" autoplay playsinline></video>
   <canvas id="canvas" width="640" height="480"></canvas>
 
   <div class="controls">
-    자리수:
+    자릿수 선택: 
     <select id="lengthSelect">
-      <option value="8">8자리</option>
-      <option value="9">9자리</option>
-      <option value="10">10자리</option>
-      <option value="11">11자리</option>
-      <option value="12">12자리</option>
-      <option value="13">13자리</option>
-      <option value="14">14자리</option>
+      ${[...Array(9)].map((_, i) => `<option value="${i + 8}">${i + 8}자리</option>`).join('')}
     </select>
     <button onclick="startScan()">Start</button>
     <button onclick="stopScan()">Stop</button>
@@ -76,7 +75,7 @@
     <button onclick="shareCodes()">Share</button>
   </div>
 
-  <div id="status">📡 대기 중입니다.</div>
+  <div id="status">⏳ 준비 중...</div>
   <div id="code-list"></div>
 
   <script>
@@ -94,11 +93,11 @@
     let startX, startY, endX, endY;
     let dragging = false;
 
-    // 카메라 연결
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
       .then(stream => {
         video.srcObject = stream;
-        setStatus("✅ 카메라 연결 완료. 드래그로 OCR 영역을 지정하세요.");
+        setStatus("✅ 카메라 연결됨. 캔버스를 드래그하여 영역을 지정하세요.");
+        drawFrame();
       })
       .catch(err => setStatus("❌ 카메라 접근 실패: " + err));
 
@@ -106,7 +105,7 @@
       statusDiv.innerText = text;
     }
 
-    // 드래그로 사각형 지정
+    // 드래그 이벤트
     canvas.addEventListener("mousedown", e => {
       const rect = canvas.getBoundingClientRect();
       startX = e.clientX - rect.left;
@@ -119,30 +118,31 @@
       const rect = canvas.getBoundingClientRect();
       endX = e.clientX - rect.left;
       endY = e.clientY - rect.top;
-      drawSelection();
     });
 
     canvas.addEventListener("mouseup", e => {
       dragging = false;
     });
 
-    function drawSelection() {
+    // 실시간 붉은 사각형 표시
+    function drawFrame() {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       if (startX != null && endX != null) {
         ctx.strokeStyle = "red";
         ctx.lineWidth = 2;
         ctx.strokeRect(startX, startY, endX - startX, endY - startY);
       }
+      requestAnimationFrame(drawFrame);
     }
 
     function startScan() {
       if (scanning) return;
-      if (startX == null || startY == null || endX == null || endY == null) {
-        setStatus("❗ 먼저 OCR 영역을 지정해주세요. 캔버스를 드래그하세요.");
+      if (!startX || !startY || !endX || !endY) {
+        setStatus("❗ 먼저 캔버스 위에 영역을 드래그해주세요.");
         return;
       }
       scanning = true;
-      setStatus("🔄 스캔 시작됨 (3초마다 인식)");
+      setStatus("🔄 스캔 시작됨 (3초 간격)");
       intervalId = setInterval(captureAndRecognize, 3000);
     }
 
@@ -153,11 +153,10 @@
     }
 
     function captureAndRecognize() {
-      drawSelection(); // 최신 프레임
       const w = endX - startX;
       const h = endY - startY;
       if (w <= 0 || h <= 0) {
-        setStatus("❗ 유효한 OCR 영역을 다시 지정해주세요.");
+        setStatus("❗ 유효한 OCR 영역이 아닙니다. 다시 드래그해주세요.");
         return;
       }
 
@@ -169,19 +168,19 @@
       tempCtx.putImageData(cropped, 0, 0);
       const imgData = tempCanvas.toDataURL("image/png");
 
-      setStatus("📸 이미지 캡처됨, OCR 처리 중...");
+      setStatus("📸 OCR 처리 중...");
 
       Tesseract.recognize(imgData, "eng", {
         tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789",
         psm: 7
       }).then(result => {
         const rawText = result.data.text;
-        setStatus("🧠 OCR 결과:\n" + rawText);
-
         const len = parseInt(lengthSelect.value);
         const regex = new RegExp(`\\b[1-9A-NP-Z]{${len}}\\b`, "g");
         const matches = rawText.match(regex);
-        if (matches) {
+        setStatus("📋 OCR 결과:\n" + rawText);
+
+        if (matches && matches.length > 0) {
           matches.forEach(code => {
             if (![...codeMap.values()].includes(code)) {
               const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 15);
@@ -190,8 +189,10 @@
               renderCodes();
             }
           });
+        } else {
+          setStatus("⚠️ 인식된 코드 없음. 다시 시도해주세요.\n" + rawText);
         }
-      }).catch(err => setStatus("❌ OCR 실패: " + err));
+      }).catch(err => setStatus("❌ OCR 오류: " + err));
     }
 
     function renderCodes() {
