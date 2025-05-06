@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>쿠폰 코드 인식기</title>
+  <title>쿠폰 코드 OCR 인식기</title>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
   <style>
     body { font-family: sans-serif; padding: 15px; max-width: 640px; margin: auto; }
@@ -21,21 +21,14 @@
 </head>
 <body>
   <h2>📷 쿠폰 코드 OCR 인식기</h2>
-  <p>화면을 드래그해서 코드가 있는 영역을 지정하세요.</p>
+  <p>화면을 드래그해서 코드가 있는 영역을 선택하세요. 자릿수도 꼭 설정해주세요.</p>
+  <video id="preview" autoplay playsinline muted style="display:none;"></video>
   <canvas id="canvas" width="1280" height="720"></canvas>
 
   <div class="controls">
     자릿수:
     <select id="lengthSelect">
-      <option value="8">8자리</option>
-      <option value="9">9자리</option>
-      <option value="10" selected>10자리</option>
-      <option value="11">11자리</option>
-      <option value="12">12자리</option>
-      <option value="13">13자리</option>
-      <option value="14">14자리</option>
-      <option value="15">15자리</option>
-      <option value="16">16자리</option>
+      ${[...Array(9)].map((_, i) => `<option value="${i + 8}">${i + 8}자리</option>`).join('')}
     </select>
     <button onclick="exportCodes()">Export</button>
     <button onclick="copyToClipboard()">Copy</button>
@@ -51,15 +44,12 @@
     const statusDiv = document.getElementById("status");
     const codeListDiv = document.getElementById("code-list");
     const lengthSelect = document.getElementById("lengthSelect");
-
+    const video = document.getElementById("preview");
     const codeMap = new Map();
-    let video;
-    let startX = null, startY = null, endX = null, endY = null;
-    let dragging = false;
+    let startX = null, startY = null, endX = null, endY = null, dragging = false;
 
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
       .then(stream => {
-        video = document.createElement("video");
         video.srcObject = stream;
         video.play();
         requestAnimationFrame(drawFrame);
@@ -71,8 +61,13 @@
 
     function getCoords(e) {
       const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
       const touch = e.touches ? e.touches[0] : e;
-      return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+      return {
+        x: (touch.clientX - rect.left) * scaleX,
+        y: (touch.clientY - rect.top) * scaleY
+      };
     }
 
     function beginDrag(e) {
@@ -99,7 +94,7 @@
     canvas.addEventListener("touchend", endDrag);
 
     function drawFrame() {
-      if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
+      if (video.readyState >= 2) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         if (startX != null && endX != null) {
           ctx.strokeStyle = "red";
@@ -112,8 +107,7 @@
 
     function runOCR() {
       if (!startX || !endX || !startY || !endY) return;
-      const w = endX - startX;
-      const h = endY - startY;
+      const w = endX - startX, h = endY - startY;
       if (w <= 0 || h <= 0) return setStatus("❗ 잘못된 영역입니다.");
 
       const crop = ctx.getImageData(startX, startY, w, h);
