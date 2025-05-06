@@ -1,82 +1,42 @@
 <!DOCTYPE html>
 <html lang="ko">
->
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>쿠폰 OCR 인식기</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>쿠폰 코드 인식기</title>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
   <style>
-    body {
-      font-family: sans-serif;
-      padding: 15px;
-      max-width: 640px;
-      margin: auto;
-    }
-    video, canvas {
-      width: 100%;
-      border: 2px solid #4CAF50;
-      border-radius: 6px;
-      display: block;
-      margin-bottom: 10px;
-    }
-    .controls, .status {
-      margin-bottom: 10px;
-    }
-    button, select {
-      margin-right: 5px;
-      padding: 8px 12px;
-      font-size: 1em;
-    }
-    .code-card {
-      border: 1px solid #ccc;
-      background: #f9f9f9;
-      padding: 10px;
-      margin-bottom: 8px;
-      border-radius: 6px;
-    }
-    .code-card input {
-      width: 75%;
-      font-size: 1em;
-    }
-    .code-card .meta {
-      font-size: 0.9em;
-      color: #555;
-    }
+    body { font-family: sans-serif; padding: 15px; max-width: 640px; margin: auto; }
+    canvas { width: 100%; border: 2px solid #4CAF50; border-radius: 6px; margin-bottom: 10px; touch-action: none; }
+    .controls { margin-bottom: 10px; }
+    button, select { margin: 5px 5px 5px 0; padding: 8px 12px; font-size: 1em; }
+    .code-card { border: 1px solid #ccc; background: #f9f9f9; padding: 10px; margin-bottom: 8px; border-radius: 6px; }
+    .code-card input { width: 75%; font-size: 1em; }
+    .meta { font-size: 0.9em; color: #555; }
     #status {
-      white-space: pre-line;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      background: #f4f4f4;
-      color: #333;
+      white-space: pre-line; margin: 10px 0; padding: 10px;
+      border: 1px solid #ccc; border-radius: 6px; background: #f4f4f4;
     }
   </style>
 </head>
 <body>
-  <h2>📷 쿠폰 코드 자동 인식기</h2>
-
-  <video id="video" autoplay playsinline></video>
-  <canvas id="canvas" width="640" height="480"></canvas>
+  <h2>📷 쿠폰 코드 OCR 인식기</h2>
+  <p>화면을 드래그해서 코드가 있는 영역을 지정하세요.</p>
+  <canvas id="canvas" width="1280" height="720"></canvas>
 
   <div class="controls">
-    자릿수 선택:
+    자릿수:
     <select id="lengthSelect">
-      <!-- 8~16자리 옵션 생성 -->
-      <script>
-        document.addEventListener("DOMContentLoaded", () => {
-          const select = document.getElementById("lengthSelect");
-          for (let i = 8; i <= 16; i++) {
-            const option = document.createElement("option");
-            option.value = i;
-            option.textContent = `${i}자리`;
-            select.appendChild(option);
-          }
-        });
-      </script>
+      <option value="8">8자리</option>
+      <option value="9">9자리</option>
+      <option value="10" selected>10자리</option>
+      <option value="11">11자리</option>
+      <option value="12">12자리</option>
+      <option value="13">13자리</option>
+      <option value="14">14자리</option>
+      <option value="15">15자리</option>
+      <option value="16">16자리</option>
     </select>
-    <button onclick="startScan()">Start</button>
-    <button onclick="stopScan()">Stop</button>
     <button onclick="exportCodes()">Export</button>
     <button onclick="copyToClipboard()">Copy</button>
     <button onclick="shareCodes()">Share</button>
@@ -86,120 +46,105 @@
   <div id="code-list"></div>
 
   <script>
-    const video = document.getElementById("video");
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
-    const codeListDiv = document.getElementById("code-list");
     const statusDiv = document.getElementById("status");
+    const codeListDiv = document.getElementById("code-list");
     const lengthSelect = document.getElementById("lengthSelect");
 
-    let scanning = false;
-    let intervalId = null;
     const codeMap = new Map();
-
-    let startX, startY, endX, endY;
+    let video;
+    let startX = null, startY = null, endX = null, endY = null;
     let dragging = false;
 
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
       .then(stream => {
+        video = document.createElement("video");
         video.srcObject = stream;
-        setStatus("✅ 카메라 연결됨. 캔버스를 드래그해서 OCR 영역을 지정하세요.");
+        video.play();
         requestAnimationFrame(drawFrame);
+        setStatus("✅ 카메라 연결됨. 영역을 드래그하세요.");
       })
-      .catch(err => setStatus("❌ 카메라 접근 실패: " + err));
+      .catch(err => setStatus("❌ 카메라 접근 실패: " + err.message));
 
-    function setStatus(text) {
-      statusDiv.innerText = text;
+    function setStatus(text) { statusDiv.innerText = text; }
+
+    function getCoords(e) {
+      const rect = canvas.getBoundingClientRect();
+      const touch = e.touches ? e.touches[0] : e;
+      return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
     }
 
-    // 드래그 이벤트
-    canvas.addEventListener("mousedown", e => {
-      const rect = canvas.getBoundingClientRect();
-      startX = e.clientX - rect.left;
-      startY = e.clientY - rect.top;
-      dragging = true;
-    });
+    function beginDrag(e) {
+      const { x, y } = getCoords(e);
+      startX = x; startY = y; dragging = true;
+    }
 
-    canvas.addEventListener("mousemove", e => {
+    function updateDrag(e) {
       if (!dragging) return;
-      const rect = canvas.getBoundingClientRect();
-      endX = e.clientX - rect.left;
-      endY = e.clientY - rect.top;
-    });
+      const { x, y } = getCoords(e);
+      endX = x; endY = y;
+    }
 
-    canvas.addEventListener("mouseup", e => {
+    function endDrag() {
       dragging = false;
-    });
+      if (startX && endX) setTimeout(runOCR, 300);
+    }
 
-    // 실시간 프레임 & 붉은 사각형 그리기
+    canvas.addEventListener("mousedown", beginDrag);
+    canvas.addEventListener("mousemove", updateDrag);
+    canvas.addEventListener("mouseup", endDrag);
+    canvas.addEventListener("touchstart", beginDrag, { passive: false });
+    canvas.addEventListener("touchmove", updateDrag, { passive: false });
+    canvas.addEventListener("touchend", endDrag);
+
     function drawFrame() {
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      if (startX != null && endX != null) {
-        ctx.strokeStyle = "red";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(startX, startY, endX - startX, endY - startY);
+      if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        if (startX != null && endX != null) {
+          ctx.strokeStyle = "red";
+          ctx.lineWidth = 2;
+          ctx.strokeRect(startX, startY, endX - startX, endY - startY);
+        }
       }
       requestAnimationFrame(drawFrame);
     }
 
-    function startScan() {
-      if (scanning) return;
-      if (!startX || !startY || !endX || !endY) {
-        setStatus("❗ 먼저 캔버스 위에 영역을 드래그해주세요.");
-        return;
-      }
-      scanning = true;
-      setStatus("🔄 스캔 시작됨 (3초 간격)");
-      intervalId = setInterval(captureAndRecognize, 3000);
-    }
-
-    function stopScan() {
-      scanning = false;
-      clearInterval(intervalId);
-      setStatus("⏸️ 스캔 중단됨");
-    }
-
-    function captureAndRecognize() {
+    function runOCR() {
+      if (!startX || !endX || !startY || !endY) return;
       const w = endX - startX;
       const h = endY - startY;
-      if (w <= 0 || h <= 0) {
-        setStatus("❗ 유효한 OCR 영역이 아닙니다. 다시 드래그해주세요.");
-        return;
-      }
+      if (w <= 0 || h <= 0) return setStatus("❗ 잘못된 영역입니다.");
 
-      const cropped = ctx.getImageData(startX, startY, w, h);
-      const tempCanvas = document.createElement("canvas");
-      tempCanvas.width = w;
-      tempCanvas.height = h;
-      const tempCtx = tempCanvas.getContext("2d");
-      tempCtx.putImageData(cropped, 0, 0);
-      const imgData = tempCanvas.toDataURL("image/png");
+      const crop = ctx.getImageData(startX, startY, w, h);
+      const temp = document.createElement("canvas");
+      temp.width = w; temp.height = h;
+      temp.getContext("2d").putImageData(crop, 0, 0);
+      const img = temp.toDataURL("image/png");
 
       setStatus("📸 OCR 처리 중...");
 
-      Tesseract.recognize(imgData, "eng", {
-        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789",
+      Tesseract.recognize(img, "eng", {
+        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890",
         psm: 7
       }).then(result => {
-        const rawText = result.data.text;
+        const text = result.data.text.trim();
         const len = parseInt(lengthSelect.value);
-        const regex = new RegExp(`\\b[1-9A-NP-Z]{${len}}\\b`, "g");
-        const matches = rawText.match(regex);
-        setStatus("📋 OCR 결과:\n" + rawText);
-
-        if (matches && matches.length > 0) {
+        const regex = new RegExp(`\\b[A-Z0-9]{${len}}\\b`, "g");
+        const matches = text.match(regex);
+        setStatus(`🧠 OCR 결과:\n${text}`);
+        if (matches) {
           matches.forEach(code => {
             if (![...codeMap.values()].includes(code)) {
-              const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 15);
-              const key = `${timestamp}_${String(codeMap.size).padStart(3, "0")}`;
-              codeMap.set(key, code);
+              const key = new Date().toISOString().replace(/[-:.TZ]/g, "");
+              codeMap.set(`${key}_${codeMap.size}`, code);
               renderCodes();
             }
           });
         } else {
-          setStatus("⚠️ 인식된 코드 없음. 다시 시도해주세요.");
+          setStatus("⚠️ 코드 인식 실패. 다시 시도해주세요.");
         }
-      }).catch(err => setStatus("❌ OCR 오류: " + err));
+      }).catch(err => setStatus("❌ OCR 오류: " + err.message));
     }
 
     function renderCodes() {
@@ -207,25 +152,16 @@
       [...codeMap.entries()].reverse().forEach(([key, code]) => {
         const div = document.createElement("div");
         div.className = "code-card";
-
         const meta = document.createElement("div");
         meta.className = "meta";
         meta.textContent = key;
-
         const input = document.createElement("input");
         input.value = code;
         input.onchange = () => codeMap.set(key, input.value);
-
         const del = document.createElement("button");
         del.textContent = "🗑";
-        del.onclick = () => {
-          codeMap.delete(key);
-          renderCodes();
-        };
-
-        div.appendChild(meta);
-        div.appendChild(input);
-        div.appendChild(del);
+        del.onclick = () => { codeMap.delete(key); renderCodes(); };
+        div.appendChild(meta); div.appendChild(input); div.appendChild(del);
         codeListDiv.appendChild(div);
       });
     }
@@ -233,10 +169,10 @@
     function exportCodes() {
       const text = [...codeMap.entries()].map(([k, c]) => `${k} : ${c}`).join("\n");
       const blob = new Blob([text], { type: "text/plain" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "coupon_codes.txt";
-      a.click();
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "coupon_codes.txt";
+      link.click();
     }
 
     function copyToClipboard() {
@@ -247,9 +183,9 @@
     function shareCodes() {
       const text = [...codeMap.entries()].map(([k, c]) => `${k} : ${c}`).join("\n");
       if (navigator.share) {
-        navigator.share({ title: "쿠폰 코드", text }).catch(e => alert("공유 실패"));
+        navigator.share({ title: "쿠폰 코드", text });
       } else {
-        alert("이 브라우저는 공유를 지원하지 않습니다.");
+        alert("이 브라우저는 공유 기능을 지원하지 않습니다.");
       }
     }
   </script>
