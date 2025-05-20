@@ -62,19 +62,17 @@ header h1 {
 .scanner-area {
     position: relative;
     width: 100%;
-    /* 가로세로 비율을 위한 패딩 트릭 (예: 4:3 비율) */
-    /* padding-top: 75%;  비디오 크기에 따라 조절 필요 */
     background-color: #000;
     margin-bottom: 15px;
     border-radius: 5px;
-    overflow: hidden; /* 스캔창이 넘치지 않도록 */
+    overflow: hidden; 
 }
 
 #camera-feed {
-    display: block; /* block으로 해야 width 100%가 잘 적용됨 */
+    display: block; 
     width: 100%;
-    height: auto; /* 자동 높이 조절 */
-    border-radius: 5px; /* scanner-area에 맞춤 */
+    height: auto; 
+    border-radius: 5px; 
 }
 
 .scan-window-overlay {
@@ -88,14 +86,15 @@ header h1 {
     align-items: center;
 }
 
+/* === 스캔 창 모양 변경 === */
 .scan-window {
-    width: 85%; /* 스캔 창 가로 크기 */
-    height: 50%; /* 스캔 창 세로 크기 */
+    width: 90%;   /* 스캔 창 가로 크기 (조금 더 넓게) */
+    height: 35%;  /* 스캔 창 세로 크기 (더 납작하게 하여 직사각형 강조) */
     border: 3px solid rgba(255, 255, 255, 0.8);
     box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.5); /* 딤처리 효과 */
     border-radius: 5px;
 }
-
+/* === 스캔 창 모양 변경 끝 === */
 
 .controls {
     text-align: center;
@@ -239,6 +238,6 @@ footer {
         font-size: 1.5em;
     }
     button {
-        padding: 12px 15px; /* 버튼 크기 살짝 키움 */
+        padding: 12px 15px; 
     }
 }
