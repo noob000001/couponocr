@@ -2,12 +2,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- DOM 요소 가져오기 ---
     const videoElement = document.getElementById('camera-feed');
     const captureCanvas = document.getElementById('capture-canvas');
-    const scanWindowOverlay = document.querySelector('.scan-window-overlay'); // 스캔 창의 부모 (딤처리 배경)
-    const scanWindow = document.querySelector('.scan-window'); // 실제 스캔 창 (테두리)
+    const scanWindowOverlay = document.querySelector('.scan-window-overlay'); 
+    const scanWindow = document.querySelector('.scan-window'); 
 
     const couponLengthInput = document.getElementById('coupon-length');
-    const couponFormatSelect = document.getElementById('coupon-format'); // 새로 추가된 쿠폰 형식 선택
-    // const recognitionModeSelect = document.getElementById('recognition-mode'); // 현재 사용 안함
+    const couponFormatSelect = document.getElementById('coupon-format'); 
     
     const captureBtn = document.getElementById('capture-btn');
 
@@ -27,10 +26,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- 전역 변수 및 상태 ---
     let localStream = null;
     let tesseractScheduler = null; 
-    let tesseractWorkersCount = 1; // 워커 수 (모바일 환경 고려하여 1로 시작, 필요시 조절)
+    let tesseractWorkersCount = 1; 
     let coupons = []; 
     let currentCandidateCode = null;
-    // Tesseract.js 기본 화이트리스트 (영숫자 + 하이픈) - 이 설정으로 워커 생성 후 JS로 추가 필터링
     const TESS_WHITELIST = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-';
 
 
@@ -42,14 +40,12 @@ document.addEventListener('DOMContentLoaded', () => {
             tesseractScheduler = Tesseract.createScheduler();
             const workerPromises = [];
             for (let i = 0; i < tesseractWorkersCount; i++) {
-                // 화이트리스트는 워커 생성 시점에 설정하거나, 각 작업마다 setParameters로 변경 가능
-                // 여기서는 생성 시점에 광범위한 화이트리스트를 설정하고 JS로 필터링
                 const worker = await Tesseract.createWorker('kor+eng', 1, { /* logger: m => console.log(m) */ });
                 await worker.setParameters({
                     tessedit_char_whitelist: TESS_WHITELIST,
                 });
                 tesseractScheduler.addWorker(worker);
-                workerPromises.push(Promise.resolve()); // 더미 프로미스 (실제론 워커 추가 성공 여부)
+                workerPromises.push(Promise.resolve()); 
             }
             await Promise.all(workerPromises);
             
@@ -84,7 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             localStream = await navigator.mediaDevices.getUserMedia(constraints);
             videoElement.srcObject = localStream;
-            await videoElement.play(); // 명시적 재생 호출
+            await videoElement.play(); 
             captureBtn.disabled = false;
             ocrStatusElement.textContent = '카메라 준비 완료.';
         } catch (err) {
@@ -114,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
         addToListBtn.addEventListener('click', addCandidateToList);
         
         couponLengthInput.addEventListener('change', saveSettings);
-        couponFormatSelect.addEventListener('change', saveSettings); // 형식 변경 시 저장
+        couponFormatSelect.addEventListener('change', saveSettings); 
 
         copyAllBtn.addEventListener('click', copyAllCouponsToClipboard);
         shareAllBtn.addEventListener('click', shareAllCoupons);
@@ -129,13 +125,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- 수동 캡처 처리 (ROI 처리 수정) ---
+    // --- 수동 캡처 처리 (ROI 처리 로직은 이전과 동일하게 유지, CSS 변경으로 화면 표시가 달라짐) ---
     async function handleManualCapture() {
         if (!localStream || !videoElement.srcObject || videoElement.readyState < videoElement.HAVE_METADATA) {
             ocrStatusElement.textContent = '카메라가 준비되지 않았습니다. 잠시 후 다시 시도해주세요.';
             return;
         }
-        if (!tesseractScheduler || tesseractScheduler.getNumWorkers() === 0) {
+        if (!tesseractScheduler || tesseractScheduler.getNumWorkers() === 0) { 
             ocrStatusElement.textContent = 'OCR 엔진이 준비되지 않았습니다. 페이지를 새로고침 해주세요.';
             console.warn("OCR 스케줄러 또는 워커 문제");
             return;
@@ -148,7 +144,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (ocrRawDebugOutputElement) ocrRawDebugOutputElement.textContent = '';
 
         try {
-            // 비디오 요소의 실제 렌더링된 크기와 비디오 원본 크기 비율 계산
             const videoRenderedWidth = videoElement.offsetWidth;
             const videoRenderedHeight = videoElement.offsetHeight;
             const videoIntrinsicWidth = videoElement.videoWidth;
@@ -157,18 +152,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const scaleX = videoIntrinsicWidth / videoRenderedWidth;
             const scaleY = videoIntrinsicHeight / videoRenderedHeight;
 
-            // 스캔 창 요소의 화면상 위치와 크기 (딤처리된 배경 기준)
             const overlayRect = scanWindowOverlay.getBoundingClientRect();
             const scanWindowRect = scanWindow.getBoundingClientRect();
 
-            // 딤처리된 배경(.scan-window-overlay) 내부에서 스캔 창의 상대적 위치와 크기를 계산
-            // 이 값들은 렌더링된 비디오 크기에 대한 비율로 변환되어야 함
             const cropVisualX = scanWindowRect.left - overlayRect.left;
             const cropVisualY = scanWindowRect.top - overlayRect.top;
             const cropVisualWidth = scanWindowRect.width;
             const cropVisualHeight = scanWindowRect.height;
             
-            // 실제 비디오 프레임에서 잘라낼 영역 계산 (스케일링 적용)
             const finalCropX = cropVisualX * scaleX;
             const finalCropY = cropVisualY * scaleY;
             const finalCropWidth = cropVisualWidth * scaleX;
@@ -182,17 +173,16 @@ document.addEventListener('DOMContentLoaded', () => {
             captureCanvas.width = finalCropWidth;
             captureCanvas.height = finalCropHeight;
             const context = captureCanvas.getContext('2d');
-            // 비디오의 특정 영역(스캔 창에 해당하는)을 캔버스에 그림
             context.drawImage(
-                videoElement,    // 원본 비디오
-                finalCropX,      // 원본 비디오에서 자르기 시작할 X 좌표
-                finalCropY,      // 원본 비디오에서 자르기 시작할 Y 좌표
-                finalCropWidth,  // 원본 비디오에서 자를 너비
-                finalCropHeight, // 원본 비디오에서 자를 높이
-                0,               // 캔버스에 그리기 시작할 X 좌표
-                0,               // 캔버스에 그리기 시작할 Y 좌표
-                finalCropWidth,  // 캔버스에 그릴 너비 (잘라낸 너비와 동일)
-                finalCropHeight  // 캔버스에 그릴 높이 (잘라낸 높이와 동일)
+                videoElement,    
+                finalCropX,      
+                finalCropY,      
+                finalCropWidth,  
+                finalCropHeight, 
+                0,               
+                0,               
+                finalCropWidth,  
+                finalCropHeight  
             );
             
             const imageDataUrl = captureCanvas.toDataURL('image/png');
@@ -210,7 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- OCR 결과 처리 (쿠폰 형식 조건부 로직 추가) ---
+    // --- OCR 결과 처리 ---
     function processOCRResult(rawText) {
         ocrStatusElement.textContent = '인식 완료. 결과 분석 중...';
         console.log("원본 OCR 텍스트:", rawText);
@@ -219,18 +209,16 @@ document.addEventListener('DOMContentLoaded', () => {
             ocrRawDebugOutputElement.textContent = `[OCR 원본]: "${rawText}" (길이: ${rawText ? rawText.length : 0})`;
         }
 
-        let workingText = rawText ? rawText.replace(/\s+/g, '') : ''; // 1차: 공백만 제거
+        let workingText = rawText ? rawText.replace(/\s+/g, '') : ''; 
         const selectedFormat = couponFormatSelect.value;
         let finalFilteredText = '';
 
         if (selectedFormat === 'alphanumeric') {
-            // 영문/숫자 모드: 하이픈 제거 후 영숫자만 남김
             workingText = workingText.replace(/-/g, ''); 
             finalFilteredText = workingText.replace(/[^A-Za-z0-9]/g, '');
         } else if (selectedFormat === 'alphanumeric_hyphen') {
-            // 영문/숫자 + 하이픈 포함 모드: 영숫자와 하이픈만 남김 (하이픈은 유지)
             finalFilteredText = workingText.replace(/[^A-Za-z0-9\-]/g, '');
-        } else { // 기본값 (혹시 모를 상황 대비)
+        } else { 
             finalFilteredText = workingText.replace(/[^A-Za-z0-9]/g, '');
         }
         
@@ -248,7 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
             maxLength = minLength; 
         }
 
-        if (finalFilteredText.length >= minLength && finalFilteredText.length <= maxLength && finalFilteredText.length > 0) { // 길이가 0인 경우도 제외
+        if (finalFilteredText.length >= minLength && finalFilteredText.length <= maxLength && finalFilteredText.length > 0) { 
             currentCandidateCode = finalFilteredText;
             recognizedCodeCandidateElement.textContent = currentCandidateCode;
             addToListBtn.style.display = 'inline-block';
