@@ -16,6 +16,15 @@
                     <label for="coupon-length">쿠폰 자릿수 (예: 12 또는 8-16):</label>
                     <input type="text" id="coupon-length" value="8-16">
                 </div>
+                {/* === 쿠폰 형식 선택 추가 === */}
+                <div>
+                    <label for="coupon-format">쿠폰 형식:</label>
+                    <select id="coupon-format">
+                        <option value="alphanumeric" selected>영문/숫자</option>
+                        <option value="alphanumeric_hyphen">영문/숫자 + 하이픈 포함</option>
+                    </select>
+                </div>
+                {/* === 쿠폰 형식 선택 추가 끝 === */}
                 <div>
                     <label for="recognition-mode">인식 모드:</label>
                     <select id="recognition-mode">
@@ -30,20 +39,19 @@
             <div class="scanner-area">
                 <video id="camera-feed" playsinline autoplay muted></video>
                 <div class="scan-window-overlay">
-                    <div class="scan-window"></div> {/* 이 부분의 CSS가 변경됩니다 */}
+                    <div class="scan-window"></div>
                 </div>
                 <canvas id="capture-canvas" style="display:none;"></canvas>
             </div>
 
             <div class="controls">
                 <button id="capture-btn">쿠폰 읽기 📸</button>
-                <button id="auto-capture-toggle-btn" style="display:none;">자동 인식 시작 ▶️</button>
+                {/* <button id="auto-capture-toggle-btn" style="display:none;">자동 인식 시작 ▶️</button> */}
             </div>
 
             <div class="result-area">
                 <h2>인식된 번호 후보:</h2>
                 <p id="ocr-status">카메라를 준비 중입니다...</p>
-                {/* === OCR 원본 텍스트 디버깅을 위한 영역 추가 === */}
                 <div id="ocr-raw-debug-output" style="font-size: 0.85em; color: #007bff; margin-bottom: 8px; padding: 5px; background-color: #e9ecef; border-radius: 3px; word-break: break-all;"></div>
                 <div id="temp-result-display">
                     <span id="recognized-code-candidate"></span>
@@ -54,21 +62,8 @@
             <div class="coupon-list-area">
                 <h2>저장된 쿠폰 목록 <span id="coupon-count">(0개)</span></h2>
                 <ul id="coupon-list">
-                    </ul>
+                    {/* 저장된 쿠폰이 여기에 추가됩니다 */}
+                </ul>
                 <div class="export-share-buttons">
                     <button id="copy-all-btn">📋 전체 목록 클립보드 복사</button>
-                    <button id="share-all-btn">📲 전체 목록 공유하기</button>
-                    <button id="export-txt-btn">💾 .txt 파일로 저장</button>
-                    <button id="delete-all-btn">🗑️ 전체 목록 삭제</button>
-                </div>
-            </div>
-        </main>
-
-        <footer>
-            <p>AI와 함께 만드는 쿠폰 스캐너</p>
-        </footer>
-    </div>
-
-    <script src="script.js"></script>
-</body>
-</html>
+                    <button
