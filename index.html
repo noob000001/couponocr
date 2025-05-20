@@ -13,10 +13,8 @@
             <h1>쿠폰 번호 스캐너 🎟️</h1>
             <div class="settings">
                 <div>
-                    <label for="coupon-length">쿠폰 자릿수 (예: 12 또는 8-16):</label>
-                    {/* === 자릿수 기본값 변경 === */}
-                    <input type="text" id="coupon-length" value="6-30">
-                    {/* === 자릿수 기본값 변경 끝 === */}
+                    <label for="coupon-length">쿠폰 자릿수 (예: 12 또는 6-30):</label>
+                    <input type="text" id="coupon-length" value="6-30"> {/* 기본값 재확인 */}
                 </div>
                 <div>
                     <label for="coupon-format">쿠폰 형식:</label>
@@ -36,7 +34,7 @@
         </header>
 
         <main>
-            <div class="scanner-area">
+            <div class="scanner-area"> {/* 이 영역의 CSS가 크게 변경됩니다 */}
                 <video id="camera-feed" playsinline autoplay muted></video>
                 <div class="scan-window-overlay">
                     <div class="scan-window"></div>
@@ -46,7 +44,6 @@
 
             <div class="controls">
                 <button id="capture-btn">쿠폰 읽기 📸</button>
-                {/* <button id="auto-capture-toggle-btn" style="display:none;">자동 인식 시작 ▶️</button> */}
             </div>
 
             <div class="result-area">
