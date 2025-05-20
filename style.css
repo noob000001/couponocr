@@ -70,7 +70,7 @@ header h1 {
 
 #camera-feed {
     display: block; 
-    width: 100%; 
+    width: 50%; 
     height: auto; 
     border-radius: inherit; 
 }
