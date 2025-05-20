@@ -14,9 +14,10 @@
             <div class="settings">
                 <div>
                     <label for="coupon-length">쿠폰 자릿수 (예: 12 또는 8-16):</label>
-                    <input type="text" id="coupon-length" value="8-16">
+                    {/* === 자릿수 기본값 변경 === */}
+                    <input type="text" id="coupon-length" value="6-30">
+                    {/* === 자릿수 기본값 변경 끝 === */}
                 </div>
-                {/* === 쿠폰 형식 선택 추가 === */}
                 <div>
                     <label for="coupon-format">쿠폰 형식:</label>
                     <select id="coupon-format">
@@ -24,7 +25,6 @@
                         <option value="alphanumeric_hyphen">영문/숫자 + 하이픈 포함</option>
                     </select>
                 </div>
-                {/* === 쿠폰 형식 선택 추가 끝 === */}
                 <div>
                     <label for="recognition-mode">인식 모드:</label>
                     <select id="recognition-mode">
