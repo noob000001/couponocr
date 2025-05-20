@@ -30,7 +30,7 @@
             <div class="scanner-area">
                 <video id="camera-feed" playsinline autoplay muted></video>
                 <div class="scan-window-overlay">
-                    <div class="scan-window"></div>
+                    <div class="scan-window"></div> {/* 이 부분의 CSS가 변경됩니다 */}
                 </div>
                 <canvas id="capture-canvas" style="display:none;"></canvas>
             </div>
@@ -43,6 +43,8 @@
             <div class="result-area">
                 <h2>인식된 번호 후보:</h2>
                 <p id="ocr-status">카메라를 준비 중입니다...</p>
+                {/* === OCR 원본 텍스트 디버깅을 위한 영역 추가 === */}
+                <div id="ocr-raw-debug-output" style="font-size: 0.85em; color: #007bff; margin-bottom: 8px; padding: 5px; background-color: #e9ecef; border-radius: 3px; word-break: break-all;"></div>
                 <div id="temp-result-display">
                     <span id="recognized-code-candidate"></span>
                     <button id="add-to-list-btn" style="display:none;">이 번호로 목록에 추가</button>
