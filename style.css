@@ -62,7 +62,7 @@ header h1 {
 .scanner-area {
     position: relative;
     width: 50%; /* 컨테이너의 50% 너비로 대폭 줄임 (기존 70%) */
-    height:200px;
+    height:360px;
     margin: 0 auto 15px auto; 
     background-color: #000; 
     border-radius: 8px; 
@@ -72,7 +72,7 @@ header h1 {
 #camera-feed {
     display: block; 
     width: 50%; 
-    height: 360px; 
+    height: 100%; 
     border-radius: inherit; 
 }
 /* === 카메라 전체 영역 크기 대폭 축소 끝 === */
