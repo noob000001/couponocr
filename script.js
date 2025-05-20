@@ -2,15 +2,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- DOM 요소 가져오기 ---
     const videoElement = document.getElementById('camera-feed');
     const captureCanvas = document.getElementById('capture-canvas');
-    const scanWindow = document.querySelector('.scan-window'); // 스캔 창 요소
+    const scanWindow = document.querySelector('.scan-window'); 
 
     const couponLengthInput = document.getElementById('coupon-length');
     const recognitionModeSelect = document.getElementById('recognition-mode');
     
     const captureBtn = document.getElementById('capture-btn');
-    const autoCaptureToggleBtn = document.getElementById('auto-capture-toggle-btn'); // 자동 인식은 아직 구현 안됨
+    // const autoCaptureToggleBtn = document.getElementById('auto-capture-toggle-btn'); // 자동 인식은 아직 구현 안됨
 
     const ocrStatusElement = document.getElementById('ocr-status');
+    const ocrRawDebugOutputElement = document.getElementById('ocr-raw-debug-output'); // 디버그용 요소
     const recognizedCodeCandidateElement = document.getElementById('recognized-code-candidate');
     const addToListBtn = document.getElementById('add-to-list-btn');
 
@@ -24,23 +25,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 전역 변수 및 상태 ---
     let localStream = null;
-    let tesseractScheduler = null; // Tesseract 스케줄러
-    let tesseractWorkersCount = 2; // 동시에 실행할 워커 수 (성능에 따라 조절)
-    let coupons = []; // 저장된 쿠폰 목록
-    let currentCandidateCode = null; // 현재 인식된 후보 코드
+    let tesseractScheduler = null; 
+    let tesseractWorkersCount = 2; 
+    let coupons = []; 
+    let currentCandidateCode = null; 
 
     // --- 초기화 함수 ---
     async function initialize() {
         ocrStatusElement.textContent = 'OCR 엔진을 로드 중입니다...';
+        if (ocrRawDebugOutputElement) ocrRawDebugOutputElement.textContent = ''; // 디버그 메시지 초기화
         try {
-            // Tesseract 스케줄러 생성 및 워커 추가
             tesseractScheduler = Tesseract.createScheduler();
+            const workerPromises = [];
             for (let i = 0; i < tesseractWorkersCount; i++) {
-                const worker = await Tesseract.createWorker('kor+eng', 1, { // 한국어+영어
-                    // logger: m => console.log(m) // 진행 상황 로깅
-                });
-                tesseractScheduler.addWorker(worker);
+                workerPromises.push(
+                    Tesseract.createWorker('kor+eng', 1, { /* logger: m => console.log(m) */ })
+                    .then(worker => tesseractScheduler.addWorker(worker))
+                );
             }
+            await Promise.all(workerPromises); // 모든 워커가 추가될 때까지 기다림
+            
             ocrStatusElement.textContent = '카메라를 준비 중입니다... 권한을 허용해주세요.';
             await setupCamera();
             loadSettings();
@@ -51,6 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error("초기화 중 오류 발생:", error);
             ocrStatusElement.textContent = `오류: ${error.message}. 카메라/OCR 초기화 실패.`;
+            if (ocrRawDebugOutputElement) ocrRawDebugOutputElement.textContent = `초기화 오류: ${error.message}`;
             alert(`오류: ${error.message}. 페이지를 새로고침하거나 카메라 권한을 확인해주세요.`);
         }
     }
@@ -58,13 +63,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- 카메라 설정 ---
     async function setupCamera() {
         try {
-            if (localStream) { // 기존 스트림이 있다면 중지
+            if (localStream) { 
                 localStream.getTracks().forEach(track => track.stop());
             }
             const constraints = {
                 video: {
-                    facingMode: 'environment', // 후면 카메라 우선
-                    width: { ideal: 1280 }, // 원하는 해상도
+                    facingMode: 'environment', 
+                    width: { ideal: 1280 }, 
                     height: { ideal: 720 }
                 },
                 audio: false
@@ -73,7 +78,6 @@ document.addEventListener('DOMContentLoaded', () => {
             videoElement.srcObject = localStream;
             videoElement.onloadedmetadata = () => {
                 captureBtn.disabled = false;
-                // 비디오 로드 후 스캔창 비율에 맞게 비디오 영역 조절 (선택적 고급 기능)
             };
             ocrStatusElement.textContent = '카메라 준비 완료.';
         } catch (err) {
@@ -88,7 +92,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function loadSettings() {
         const savedLength = localStorage.getItem('couponScanner_couponLength');
         if (savedLength) couponLengthInput.value = savedLength;
-        // 인식 모드 설정도 유사하게 로드 가능
     }
     function saveSettings() {
         localStorage.setItem('couponScanner_couponLength', couponLengthInput.value);
@@ -100,14 +103,12 @@ document.addEventListener('DOMContentLoaded', () => {
         addToListBtn.addEventListener('click', addCandidateToList);
         
         couponLengthInput.addEventListener('change', saveSettings);
-        // recognitionModeSelect.addEventListener('change', handleModeChange); // 자동 인식 모드 변경 시
 
         copyAllBtn.addEventListener('click', copyAllCouponsToClipboard);
         shareAllBtn.addEventListener('click', shareAllCoupons);
         exportTxtBtn.addEventListener('click', exportCouponsAsTextFile);
         deleteAllBtn.addEventListener('click', deleteAllCoupons);
 
-        // 동적으로 추가되는 삭제 버튼에 대한 이벤트 위임
         couponListULElement.addEventListener('click', function(event) {
             if (event.target && event.target.classList.contains('delete-item-btn')) {
                 const codeToDelete = event.target.dataset.code;
@@ -118,8 +119,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 수동 캡처 처리 ---
     async function handleManualCapture() {
-        if (!localStream || !tesseractScheduler) {
-            ocrStatusElement.textContent = '카메라 또는 OCR 엔진이 준비되지 않았습니다.';
+        if (!localStream || !tesseractScheduler || tesseractScheduler.getQueueLen() === 0) { // 워커가 제대로 추가되었는지 확인
+            ocrStatusElement.textContent = '카메라 또는 OCR 엔진이 준비되지 않았습니다. 잠시 후 다시 시도해주세요.';
+            console.warn("OCR 스케줄러 또는 워커 문제");
             return;
         }
         
@@ -127,51 +129,58 @@ document.addEventListener('DOMContentLoaded', () => {
         addToListBtn.style.display = 'none';
         recognizedCodeCandidateElement.textContent = '';
         ocrStatusElement.textContent = '이미지 캡처 중...';
+        if (ocrRawDebugOutputElement) ocrRawDebugOutputElement.textContent = '';
+
 
         try {
-            // 스캔 창 영역만 캡처
             const videoRect = videoElement.getBoundingClientRect();
-            const scanWindowRect = scanWindow.getBoundingClientRect(); // 스캔창의 실제 화면상 위치/크기
+            const scanWindowRect = scanWindow.getBoundingClientRect(); 
             
             const scaleX = videoElement.videoWidth / videoRect.width;
             const scaleY = videoElement.videoHeight / videoRect.height;
 
-            // videoRect 기준으로 scanWindowRect의 상대적 위치 계산
-            const cropX = (scanWindowRect.left - videoRect.left) * scaleX;
-            const cropY = (scanWindowRect.top - videoRect.top) * scaleY;
-            const cropWidth = scanWindowRect.width * scaleX;
-            const cropHeight = scanWindowRect.height * scaleY;
+            const cropX = Math.max(0, (scanWindowRect.left - videoRect.left) * scaleX);
+            const cropY = Math.max(0, (scanWindowRect.top - videoRect.top) * scaleY);
+            const cropWidth = Math.min(videoElement.videoWidth - cropX, scanWindowRect.width * scaleX);
+            const cropHeight = Math.min(videoElement.videoHeight - cropY, scanWindowRect.height * scaleY);
             
+            if (cropWidth <= 0 || cropHeight <= 0) {
+                throw new Error("스캔 창 영역 계산 오류. 비디오 크기를 확인하세요.");
+            }
+
             captureCanvas.width = cropWidth;
             captureCanvas.height = cropHeight;
             const context = captureCanvas.getContext('2d');
-            // 스캔 창 영역만 그리기
             context.drawImage(videoElement, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
             
             const imageDataUrl = captureCanvas.toDataURL('image/png');
             ocrStatusElement.textContent = '쿠폰 번호 인식 중... 잠시만 기다려주세요.';
             
-            // Tesseract.js로 OCR 수행
             const { data: { text } } = await tesseractScheduler.addJob('recognize', imageDataUrl);
             processOCRResult(text);
 
         } catch (error) {
             console.error("캡처 또는 OCR 오류:", error);
             ocrStatusElement.textContent = `오류 발생: ${error.message}`;
+            if (ocrRawDebugOutputElement) ocrRawDebugOutputElement.textContent = `캡처/OCR 오류: ${error.message}`;
         } finally {
             captureBtn.disabled = false;
         }
     }
 
-    // --- OCR 결과 처리 ---
+    // --- OCR 결과 처리 (디버그 메시지 추가) ---
     function processOCRResult(rawText) {
         ocrStatusElement.textContent = '인식 완료. 결과 분석 중...';
         console.log("원본 OCR 텍스트:", rawText);
 
-        // 1. 하이픈 제거 및 공백 제거
-        let processedText = rawText.replace(/-/g, '').replace(/\s+/g, '');
+        // === OCR 원본 텍스트 및 길이 화면에 표시 (디버깅용) ===
+        if (ocrRawDebugOutputElement) {
+            ocrRawDebugOutputElement.textContent = `[OCR 원본]: "${rawText}" (길이: ${rawText ? rawText.length : 0})`;
+        }
+        // === 디버깅용 코드 끝 ===
+
+        let processedText = rawText ? rawText.replace(/-/g, '').replace(/\s+/g, '') : '';
         
-        // 2. 쿠폰 자릿수 설정 가져오기 (예: "12" 또는 "8-16")
         const lengthPattern = couponLengthInput.value.trim();
         let minLength = 0, maxLength = Infinity;
 
@@ -181,13 +190,11 @@ document.addEventListener('DOMContentLoaded', () => {
             maxLength = parseInt(parts[1], 10) || Infinity;
         } else if (lengthPattern) {
             minLength = parseInt(lengthPattern, 10) || 0;
-            maxLength = minLength; // 고정 길이
+            maxLength = minLength; 
         }
 
-        // 3. 유효한 문자(영숫자) 필터링 및 자릿수 확인 (더 정교한 필터링 필요 가능성 있음)
-        // 한글 등 다른 문자 제거 (정규식 개선 필요)
         const alphanumericText = processedText.replace(/[^A-Za-z0-9]/g, ''); 
-        console.log("영숫자 필터링 후:", alphanumericText);
+        console.log("영숫자 필터링 후:", alphanumericText, "길이:", alphanumericText.length);
 
         if (alphanumericText.length >= minLength && alphanumericText.length <= maxLength) {
             currentCandidateCode = alphanumericText;
@@ -198,14 +205,16 @@ document.addEventListener('DOMContentLoaded', () => {
             currentCandidateCode = null;
             recognizedCodeCandidateElement.textContent = '-';
             addToListBtn.style.display = 'none';
-            ocrStatusElement.textContent = `인식된 내용(${alphanumericText})이 설정된 자릿수(${lengthPattern})와 맞지 않습니다.`;
-            if (!alphanumericText && rawText.trim()) {
-                 ocrStatusElement.textContent += ` (원본: ${rawText.trim()})`;
+            // === 메시지 수정: OCR 원본 참고 안내 ===
+            ocrStatusElement.textContent = `필터링 후 내용(${alphanumericText})이 설정된 자릿수(${lengthPattern})와 맞지 않습니다. (OCR 원본은 위 파란색 텍스트 참고)`;
+            if (!alphanumericText && rawText && rawText.trim()) {
+                 ocrStatusElement.textContent += ` (원본에 글자는 있었으나 유효하지 않음)`;
             }
+            // === 메시지 수정 끝 ===
         }
     }
 
-    // --- 쿠폰 목록 관리 ---
+    // --- 쿠폰 목록 관리 (이하 동일) ---
     function addCandidateToList() {
         if (currentCandidateCode && !coupons.includes(currentCandidateCode)) {
             coupons.push(currentCandidateCode);
@@ -216,6 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
             recognizedCodeCandidateElement.textContent = '';
             addToListBtn.style.display = 'none';
             currentCandidateCode = null;
+             if (ocrRawDebugOutputElement) ocrRawDebugOutputElement.textContent = ''; // 성공 시 디버그 메시지 초기화
         } else if (coupons.includes(currentCandidateCode)) {
             ocrStatusElement.textContent = '이미 목록에 있는 번호입니다.';
         }
@@ -236,11 +246,12 @@ document.addEventListener('DOMContentLoaded', () => {
             renderCouponList();
             updateCouponCount();
             ocrStatusElement.textContent = '모든 쿠폰이 삭제되었습니다.';
+             if (ocrRawDebugOutputElement) ocrRawDebugOutputElement.textContent = '';
         }
     }
 
     function renderCouponList() {
-        couponListULElement.innerHTML = ''; // 목록 비우기
+        couponListULElement.innerHTML = ''; 
         if (coupons.length === 0) {
             const li = document.createElement('li');
             li.textContent = '저장된 쿠폰이 없습니다.';
@@ -257,7 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const deleteBtn = document.createElement('button');
                 deleteBtn.textContent = '삭제';
                 deleteBtn.classList.add('delete-item-btn');
-                deleteBtn.dataset.code = code; // data 속성으로 삭제할 코드 저장
+                deleteBtn.dataset.code = code; 
                 li.appendChild(deleteBtn);
                 
                 couponListULElement.appendChild(li);
@@ -281,7 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
         couponCountElement.textContent = `(${coupons.length}개)`;
     }
 
-    // --- 내보내기/공유 기능 ---
+    // --- 내보내기/공유 기능 (이하 동일) ---
     function getFormattedCouponText() {
         if (coupons.length === 0) return "저장된 쿠폰이 없습니다.";
         return "저장된 쿠폰 목록:\n" + coupons.join("\n");
@@ -302,11 +313,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 .catch(err => {
                     console.error('클립보드 복사 실패:', err);
                     alert('클립보드 복사에 실패했습니다.');
-                    // 구형 브라우저를 위한 대체 수단 (선택적)
-                    // prompt("아래 내용을 직접 복사하세요:", textToCopy);
                 });
         } else {
-            // navigator.clipboard API가 지원되지 않는 경우 (HTTPS가 아니거나 매우 구형 브라우저)
             alert('클립보드 복사 기능이 지원되지 않는 환경입니다. 수동으로 복사해주세요.');
             prompt("클립보드 복사가 지원되지 않습니다. 아래 내용을 직접 복사하세요:", textToCopy);
         }
@@ -323,41 +331,4 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         if (navigator.share) {
             try {
-                await navigator.share(shareData);
-                ocrStatusElement.textContent = '쿠폰 목록 공유 시도 완료.';
-            } catch (err) {
-                console.error('공유 실패:', err);
-                // 사용자가 공유를 취소한 경우는 오류로 처리하지 않을 수 있음 (err.name === 'AbortError')
-                if (err.name !== 'AbortError') {
-                     ocrStatusElement.textContent = `공유 실패: ${err.message}`;
-                     alert(`공유에 실패했습니다: ${err.message}`);
-                }
-            }
-        } else {
-            alert('웹 공유 기능이 지원되지 않는 브라우저입니다. 클립보드 복사 후 직접 공유해주세요.');
-            ocrStatusElement.textContent = '웹 공유 기능이 지원되지 않습니다.';
-        }
-    }
-
-    function exportCouponsAsTextFile() {
-        if (coupons.length === 0) {
-            alert('내보낼 쿠폰이 없습니다.');
-            return;
-        }
-        const textContent = getFormattedCouponText();
-        const filename = `coupons_${new Date().toISOString().slice(0,10)}.txt`;
-        const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
-        
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(link.href); // 메모리 해제
-        ocrStatusElement.textContent = `${filename} 파일이 다운로드되었습니다.`;
-    }
-
-    // --- 앱 시작 ---
-    initialize();
-});
+                await navigator.share(shareData
