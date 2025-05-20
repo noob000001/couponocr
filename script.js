@@ -1,11 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- DOM 요소 가져오기 (이전과 동일) ---
     const videoElement = document.getElementById('camera-feed');
     const captureCanvas = document.getElementById('capture-canvas');
-    const scanWindowOverlay = document.querySelector('.scan-window-overlay'); 
-    const scanWindow = document.querySelector('.scan-window'); 
+    const scanWindowOverlay = document.querySelector('.scan-window-overlay');
+    const scanWindow = document.querySelector('.scan-window');
     const couponLengthInput = document.getElementById('coupon-length');
-    const couponFormatSelect = document.getElementById('coupon-format'); 
+    const couponFormatSelect = document.getElementById('coupon-format');
     const captureBtn = document.getElementById('capture-btn');
     const ocrStatusElement = document.getElementById('ocr-status');
     const ocrRawDebugOutputElement = document.getElementById('ocr-raw-debug-output');
@@ -18,15 +17,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const exportTxtBtn = document.getElementById('export-txt-btn');
     const deleteAllBtn = document.getElementById('delete-all-btn');
 
-    // --- 전역 변수 및 상태 (이전과 동일) ---
     let localStream = null;
-    let tesseractScheduler = null; 
-    let tesseractWorkersCount = 1; 
-    let coupons = []; 
+    let tesseractScheduler = null;
+    let tesseractWorkersCount = 1;
+    let coupons = [];
     let currentCandidateCode = null;
     const TESS_WHITELIST = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-';
 
-    // --- 초기화 함수 (이전과 동일) ---
     async function initialize() {
         console.log("App initializing...");
         ocrStatusElement.textContent = 'OCR 엔진을 로드 중입니다...';
@@ -35,10 +32,14 @@ document.addEventListener('DOMContentLoaded', () => {
             tesseractScheduler = Tesseract.createScheduler();
             const workerPromises = [];
             for (let i = 0; i < tesseractWorkersCount; i++) {
-                const worker = await Tesseract.createWorker('kor+eng', 1, { /* logger: m => console.log(m) */ });
-                await worker.setParameters({ tessedit_char_whitelist: TESS_WHITELIST });
+                const worker = await Tesseract.createWorker('kor+eng', 1, {
+                    // logger: m => console.log(m) // 필요시 진행 상황 로깅
+                });
+                await worker.setParameters({
+                    tessedit_char_whitelist: TESS_WHITELIST,
+                });
                 tesseractScheduler.addWorker(worker);
-                workerPromises.push(Promise.resolve()); 
+                workerPromises.push(Promise.resolve());
             }
             await Promise.all(workerPromises);
             console.log("Tesseract workers initialized.");
@@ -55,7 +56,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- 카메라 설정 (이전과 동일) ---
     async function setupCamera() {
         console.log("Setting up camera...");
         try {
@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const constraints = { video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false };
             localStream = await navigator.mediaDevices.getUserMedia(constraints);
             videoElement.srcObject = localStream;
-            await videoElement.play(); 
+            await videoElement.play();
             captureBtn.disabled = false;
             ocrStatusElement.textContent = '카메라 준비 완료.';
             console.log("Camera setup complete.");
@@ -75,7 +75,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- 설정 로드 및 저장 (이전과 동일) ---
     function loadSettings() {
         const savedLength = localStorage.getItem('couponScanner_couponLength');
         if (savedLength) couponLengthInput.value = savedLength;
@@ -89,151 +88,162 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("Settings saved.");
     }
 
-    // --- 이벤트 리스너 설정 (이전과 동일) ---
     function setupEventListeners() {
         captureBtn.addEventListener('click', handleManualCapture);
         addToListBtn.addEventListener('click', addCandidateToList);
         couponLengthInput.addEventListener('change', saveSettings);
-        couponFormatSelect.addEventListener('change', saveSettings); 
+        couponFormatSelect.addEventListener('change', saveSettings);
         copyAllBtn.addEventListener('click', copyAllCouponsToClipboard);
         shareAllBtn.addEventListener('click', shareAllCoupons);
         exportTxtBtn.addEventListener('click', exportCouponsAsTextFile);
         deleteAllBtn.addEventListener('click', deleteAllCoupons);
-        
-        // === 삭제 버튼 이벤트 리스너 로그 추가 ===
         couponListULElement.addEventListener('click', function(event) {
-            console.log("Click event on coupon list UL.", event.target);
             if (event.target && event.target.classList.contains('delete-item-btn')) {
                 const codeToDelete = event.target.dataset.code;
-                console.log("Delete button clicked for code:", codeToDelete);
-                deleteCoupon(codeToDelete);
+                const listItemElement = event.target.closest('li');
+                deleteCoupon(codeToDelete, listItemElement);
             }
         });
         console.log("Event listeners setup.");
     }
-    
-    // === 이미지 잘라내기 로직 (이전과 동일 - handleManualCapture 함수 전체) ===
+
+    // === 이미지 잘라내기 로직: object-fit: contain 상황을 고려하여 재수정 ===
     async function handleManualCapture() {
         if (!localStream || !videoElement.srcObject || videoElement.readyState < videoElement.HAVE_METADATA) {
             ocrStatusElement.textContent = '카메라가 준비되지 않았습니다.'; return;
         }
-        if (!tesseractScheduler || tesseractScheduler.getNumWorkers() === 0) { 
+        if (!tesseractScheduler || tesseractScheduler.getNumWorkers() === 0) {
             ocrStatusElement.textContent = 'OCR 엔진 준비 중...'; return;
         }
-        
+
         captureBtn.disabled = true;
         addToListBtn.style.display = 'none';
         recognizedCodeCandidateElement.textContent = '';
         ocrStatusElement.textContent = '이미지 캡처 중...';
         if (ocrRawDebugOutputElement) ocrRawDebugOutputElement.textContent = '';
+        console.log("handleManualCapture started");
 
         try {
-            const renderedVideo = getContainedVideoDimensions(videoElement);
             const videoIntrinsicWidth = videoElement.videoWidth;
             const videoIntrinsicHeight = videoElement.videoHeight;
-            const videoElemRect = videoElement.getBoundingClientRect();
-            const scanWindowRect = scanWindow.getBoundingClientRect();
-            const scanX_relative_to_video_content_start = (scanWindowRect.left - videoElemRect.left - renderedVideo.x) / renderedVideo.width;
-            const scanY_relative_to_video_content_start = (scanWindowRect.top - videoElemRect.top - renderedVideo.y) / renderedVideo.height;
-            const scanWidth_relative_to_video_content = scanWindowRect.width / renderedVideo.width;
-            const scanHeight_relative_to_video_content = scanWindowRect.height / renderedVideo.height;
-            const sx = videoIntrinsicWidth * scanX_relative_to_video_content_start;
-            const sy = videoIntrinsicHeight * scanY_relative_to_video_content_start;
-            const sWidth = videoIntrinsicWidth * scanWidth_relative_to_video_content;
-            const sHeight = videoIntrinsicHeight * scanHeight_relative_to_video_content;
+            const videoAspectRatio = videoIntrinsicWidth / videoIntrinsicHeight;
 
-            if (sWidth <= 0 || sHeight <= 0 || sx < 0 || sy < 0 || 
-                (sx + sWidth > videoIntrinsicWidth + 0.5) || 
-                (sy + sHeight > videoIntrinsicHeight + 0.5) ) {
-                console.error("최종 잘라낼 영역 계산 오류 또는 스캔창이 비디오 영역 바깥에 위치:", {sx, sy, sWidth, sHeight, videoIntrinsicWidth, videoIntrinsicHeight});
-                throw new Error("스캔 창 영역 계산 오류. 스캔 창 크기나 위치를 확인하세요.");
+            // videoElement는 CSS의 object-fit: contain 에 의해 스케일링되고 레터박스가 생길 수 있음
+            // videoElement의 화면상 실제 크기
+            const videoElemClientWidth = videoElement.clientWidth;
+            const videoElemClientHeight = videoElement.clientHeight;
+            const elemAspectRatio = videoElemClientWidth / videoElemClientHeight;
+
+            // videoElement 내에서 실제 비디오 내용이 그려지는 유효 영역 계산
+            let renderedVideoWidth, renderedVideoHeight, offsetX, offsetY;
+            if (videoAspectRatio > elemAspectRatio) { // 비디오가 요소보다 넓음 (위아래 레터박스)
+                renderedVideoWidth = videoElemClientWidth;
+                renderedVideoHeight = videoElemClientWidth / videoAspectRatio;
+                offsetX = 0;
+                offsetY = (videoElemClientHeight - renderedVideoHeight) / 2;
+            } else { // 비디오가 요소보다 길거나 같음 (좌우 레터박스 또는 꽉참)
+                renderedVideoHeight = videoElemClientHeight;
+                renderedVideoWidth = videoElemClientHeight * videoAspectRatio;
+                offsetX = (videoElemClientWidth - renderedVideoWidth) / 2;
+                offsetY = 0;
             }
+            console.log("Rendered video dimensions within element:", { renderedVideoWidth, renderedVideoHeight, offsetX, offsetY });
+
+            // 스캔 창의 화면상 위치와 크기 (videoElement 기준이 아닌, 전체 document 기준)
+            const scanWindowRect = scanWindow.getBoundingClientRect();
+            // videoElement의 화면상 위치
+            const videoElementRect = videoElement.getBoundingClientRect();
+
+            // 스캔 창의 시작점이 videoElement의 (0,0)을 기준으로 어디서 시작하는지 (레터박스 포함된 영역 기준)
+            let scanVisualX = scanWindowRect.left - videoElementRect.left;
+            let scanVisualY = scanWindowRect.top - videoElementRect.top;
+            let scanVisualWidth = scanWindowRect.width;
+            let scanVisualHeight = scanWindowRect.height;
+
+            // 스캔 창 좌표를 실제 비디오 내용 영역 기준으로 변환
+            scanVisualX = scanVisualX - offsetX;
+            scanVisualY = scanVisualY - offsetY;
+
+            // 변환된 좌표가 실제 비디오 내용 영역을 벗어나지 않도록 클리핑
+            scanVisualX = Math.max(0, scanVisualX);
+            scanVisualY = Math.max(0, scanVisualY);
+
+            // 스캔 창의 끝점이 실제 비디오 내용 영역을 벗어나지 않도록 너비/높이 조절
+            scanVisualWidth = Math.min(scanVisualWidth, renderedVideoWidth - scanVisualX);
+            scanVisualHeight = Math.min(scanVisualHeight, renderedVideoHeight - scanVisualY);
             
-            captureCanvas.width = sWidth; 
+            console.log("Visual scan area relative to rendered video content:",{ scanVisualX, scanVisualY, scanVisualWidth, scanVisualHeight });
+
+            if (scanVisualWidth <= 0 || scanVisualHeight <= 0) {
+                throw new Error("스캔 창 영역이 유효하지 않습니다 (크기가 0 또는 음수).");
+            }
+
+            // 원본 비디오 해상도에서 잘라낼 소스(source) 영역 계산
+            // (화면에 보이는 스캔창 영역 / 화면에 보이는 비디오 영역) * 원본 비디오 해상도
+            const sx = (scanVisualX / renderedVideoWidth) * videoIntrinsicWidth;
+            const sy = (scanVisualY / renderedVideoHeight) * videoIntrinsicHeight;
+            const sWidth = (scanVisualWidth / renderedVideoWidth) * videoIntrinsicWidth;
+            const sHeight = (scanVisualHeight / renderedVideoHeight) * videoIntrinsicHeight;
+            
+            console.log("Source crop area for drawImage (intrinsic video resolution):", { sx, sy, sWidth, sHeight });
+
+            if (sWidth <= 0 || sHeight <= 0 || sx < 0 || sy < 0 ||
+                (sx + sWidth > videoIntrinsicWidth + 1) || // 부동소수점 오차 감안 +1
+                (sy + sHeight > videoIntrinsicHeight + 1) ) {
+                console.error("최종 원본 비디오 잘라낼 영역 계산 오류:", {sx, sy, sWidth, sHeight});
+                throw new Error("잘라낼 원본 비디오 영역 계산에 오류가 있습니다.");
+            }
+
+            captureCanvas.width = sWidth;
             captureCanvas.height = sHeight;
             const context = captureCanvas.getContext('2d');
             context.drawImage(videoElement, sx, sy, sWidth, sHeight, 0, 0, sWidth, sHeight);
-            
+            console.log("Image drawn to canvas for OCR.");
+
             const imageDataUrl = captureCanvas.toDataURL('image/png');
             ocrStatusElement.textContent = '쿠폰 번호 인식 중... 잠시만 기다려주세요.';
-            
-            const { data: { text } } = await tesseractScheduler.addJob('recognize', imageDataUrl);
-            processOCRResult(text);
+
+            const result = await tesseractScheduler.addJob('recognize', imageDataUrl);
+            console.log("Tesseract result:", result);
+            processOCRResult(result.data.text);
 
         } catch (error) {
-            console.error("캡처 또는 OCR 오류:", error);
+            console.error("캡처 또는 OCR 처리 중 오류:", error);
             ocrStatusElement.textContent = `오류 발생: ${error.message}`;
             if (ocrRawDebugOutputElement) ocrRawDebugOutputElement.textContent = `캡처/OCR 오류: ${error.message}`;
         } finally {
             captureBtn.disabled = false;
+            console.log("handleManualCapture finished");
         }
     }
-    
-    function getContainedVideoDimensions(videoElement) {
-        const videoIntrinsicWidth = videoElement.videoWidth;
-        const videoIntrinsicHeight = videoElement.videoHeight;
-        const videoElemClientWidth = videoElement.clientWidth; 
-        const videoElemClientHeight = videoElement.clientHeight; 
-        const videoAspectRatio = videoIntrinsicWidth / videoIntrinsicHeight;
-        const elemAspectRatio = videoElemClientWidth / videoElemClientHeight;
-        let renderWidth, renderHeight, xOffset, yOffset;
-        if (videoAspectRatio > elemAspectRatio) { 
-            renderWidth = videoElemClientWidth;
-            renderHeight = videoElemClientWidth / videoAspectRatio;
-            xOffset = 0;
-            yOffset = (videoElemClientHeight - renderHeight) / 2;
-        } else { 
-            renderHeight = videoElemClientHeight;
-            renderWidth = videoElemClientHeight * videoAspectRatio;
-            yOffset = 0;
-            xOffset = (videoElemClientWidth - renderWidth) / 2;
-        }
-        return { x: xOffset, y: yOffset, width: renderWidth, height: renderHeight };
-    }
+    // === 이미지 잘라내기 로직 수정 끝 ===
 
-    // --- OCR 결과 처리 (이전과 동일) ---
-    function processOCRResult(rawText) {
-        ocrStatusElement.textContent = '인식 완료. 결과 분석 중...';
-        console.log("원본 OCR 텍스트:", rawText);
+    function processOCRResult(rawText) { /* ... 이전 코드와 동일 ... */ 
+        ocrStatusElement.textContent = '인식 완료. 결과 분석 중...'; console.log("원본 OCR 텍스트:", rawText);
         if (ocrRawDebugOutputElement) { ocrRawDebugOutputElement.textContent = `[OCR 원본]: "${rawText}" (길이: ${rawText ? rawText.length : 0})`; }
-        let workingText = rawText ? rawText.replace(/\s+/g, '') : ''; 
-        const selectedFormat = couponFormatSelect.value;
-        let finalFilteredText = '';
+        let workingText = rawText ? rawText.replace(/\s+/g, '') : ''; const selectedFormat = couponFormatSelect.value; let finalFilteredText = '';
         if (selectedFormat === 'alphanumeric') {
-            workingText = workingText.replace(/-/g, ''); 
-            finalFilteredText = workingText.replace(/[^A-Za-z0-9]/g, '');
+            workingText = workingText.replace(/-/g, ''); finalFilteredText = workingText.replace(/[^A-Za-z0-9]/g, '');
         } else if (selectedFormat === 'alphanumeric_hyphen') {
             finalFilteredText = workingText.replace(/[^A-Za-z0-9\-]/g, '');
         } else { finalFilteredText = workingText.replace(/[^A-Za-z0-9]/g, ''); }
         console.log("선택 형식:", selectedFormat, " | 필터링 후:", finalFilteredText, " | 길이:", finalFilteredText.length);
-        const lengthPattern = couponLengthInput.value.trim();
-        let minLength = 0, maxLength = Infinity;
+        const lengthPattern = couponLengthInput.value.trim(); let minLength = 0, maxLength = Infinity;
         if (lengthPattern.includes('-')) {
-            const parts = lengthPattern.split('-');
-            minLength = parseInt(parts[0], 10) || 0;
-            maxLength = parseInt(parts[1], 10) || Infinity;
-        } else if (lengthPattern) {
-            minLength = parseInt(lengthPattern, 10) || 0;
-            maxLength = minLength; 
-        }
+            const parts = lengthPattern.split('-'); minLength = parseInt(parts[0], 10) || 0; maxLength = parseInt(parts[1], 10) || Infinity;
+        } else if (lengthPattern) { minLength = parseInt(lengthPattern, 10) || 0; maxLength = minLength; }
         if (finalFilteredText.length >= minLength && finalFilteredText.length <= maxLength && finalFilteredText.length > 0) { 
-            currentCandidateCode = finalFilteredText;
-            recognizedCodeCandidateElement.textContent = currentCandidateCode;
-            addToListBtn.style.display = 'inline-block';
-            ocrStatusElement.textContent = '인식된 번호를 확인하고 목록에 추가하세요.';
+            currentCandidateCode = finalFilteredText; recognizedCodeCandidateElement.textContent = currentCandidateCode;
+            addToListBtn.style.display = 'inline-block'; ocrStatusElement.textContent = '인식된 번호를 확인하고 목록에 추가하세요.';
         } else {
-            currentCandidateCode = null;
-            recognizedCodeCandidateElement.textContent = '-';
-            addToListBtn.style.display = 'none';
+            currentCandidateCode = null; recognizedCodeCandidateElement.textContent = '-'; addToListBtn.style.display = 'none';
             let message = `필터링 후 내용(${finalFilteredText})이 설정된 자릿수(${lengthPattern})와 맞지 않습니다.`;
             if (finalFilteredText.length === 0 && rawText && rawText.trim().length > 0) { message += ` (유효한 문자를 찾지 못함)`; }
-            message += ` (OCR 원본은 위 파란색 텍스트 참고)`;
-            ocrStatusElement.textContent = message;
+            message += ` (OCR 원본은 위 파란색 텍스트 참고)`; ocrStatusElement.textContent = message;
         }
     }
 
-    // --- 쿠폰 목록 관리 (디버깅 로그 추가) ---
-    function addCandidateToList() {
+    function addCandidateToList() { /* ... 이전 코드와 동일 (최적화된 삭제 로직 유지) ... */ 
         console.log("addCandidateToList called. currentCandidateCode:", currentCandidateCode);
         if (currentCandidateCode && !coupons.includes(currentCandidateCode)) {
             coupons.push(currentCandidateCode); saveCoupons(); renderCouponList(); updateCouponCount();
@@ -244,27 +254,37 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (!currentCandidateCode) { ocrStatusElement.textContent = '추가할 유효한 쿠폰 번호가 없습니다.'; }
         console.log("addCandidateToList finished. Coupons:", coupons);
     }
-
-    // === deleteCoupon 함수에 로그 추가 ===
-    function deleteCoupon(codeToDelete) {
+    
+    function deleteCoupon(codeToDelete, listItemElement) { /* ... 이전 코드와 동일 (최적화된 삭제 로직 유지) ... */ 
         console.log("--- deleteCoupon initiated ---");
         console.log("Attempting to delete code:", codeToDelete, "| Type:", typeof codeToDelete);
         console.log("Coupons array BEFORE deletion:", JSON.parse(JSON.stringify(coupons)));
-
+        const initialLength = coupons.length;
         coupons = coupons.filter(code => code !== codeToDelete);
-        
+        const newLength = coupons.length;
         console.log("Coupons array AFTER deletion:", JSON.parse(JSON.stringify(coupons)));
-        console.log("Now calling saveCoupons...");
-        saveCoupons();
-        console.log("Now calling renderCouponList...");
-        renderCouponList();
-        console.log("Now calling updateCouponCount...");
-        updateCouponCount();
-        ocrStatusElement.textContent = `"${codeToDelete}" 가 목록에서 삭제되었습니다.`;
+        if (initialLength !== newLength) { 
+            console.log("Code was found and removed from array. Now calling saveCoupons...");
+            saveCoupons();
+            if (listItemElement && listItemElement.parentNode === couponListULElement) {
+                console.log("Attempting to remove specific li element from DOM:", listItemElement);
+                couponListULElement.removeChild(listItemElement);
+                console.log("Specific li element removed from DOM.");
+            } else {
+                console.warn("listItemElement not provided or invalid for direct DOM removal. Falling back to full renderCouponList.");
+                renderCouponList();
+            }
+            console.log("Now calling updateCouponCount...");
+            updateCouponCount();
+            ocrStatusElement.textContent = `"${codeToDelete}" 가 목록에서 삭제되었습니다.`;
+        } else {
+            console.log("Code not found in coupons array, no deletion performed from array.");
+            ocrStatusElement.textContent = `"${codeToDelete}" 는 목록에 없습니다.`;
+        }
         console.log("--- deleteCoupon finished ---");
     }
 
-    function deleteAllCoupons() {
+    function deleteAllCoupons() { /* ... 이전 코드와 동일 (최적화된 삭제 로직 유지) ... */ 
         console.log("--- deleteAllCoupons initiated ---");
         if (coupons.length === 0) { ocrStatusElement.textContent = '삭제할 쿠폰이 없습니다.'; return; }
         if (confirm('정말로 모든 쿠폰 목록을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
@@ -276,12 +296,10 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("--- deleteAllCoupons finished ---");
     }
 
-    // === renderCouponList 함수에 로그 추가 ===
-    function renderCouponList() {
+    function renderCouponList() { /* ... 이전 코드와 동일 (최적화된 삭제 로직 유지) ... */ 
         console.log("--- renderCouponList initiated. Number of coupons to render:", coupons.length);
-        couponListULElement.innerHTML = ''; // 목록 비우기
+        couponListULElement.innerHTML = ''; 
         console.log("Coupon list UL cleared.");
-
         if (coupons.length === 0) {
             const li = document.createElement('li'); li.textContent = '저장된 쿠폰이 없습니다.';
             li.style.textAlign = 'center'; li.style.color = '#7f8c8d';
@@ -289,46 +307,37 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("Displayed 'No coupons' message.");
         } else {
             coupons.forEach((code, index) => {
-                console.log(`Rendering item ${index + 1}: ${code}`);
                 const li = document.createElement('li'); 
-                const codeSpan = document.createElement('span');
-                codeSpan.textContent = code; 
-                li.appendChild(codeSpan);
-
-                const deleteBtn = document.createElement('button'); 
-                deleteBtn.textContent = '삭제';
-                deleteBtn.classList.add('delete-item-btn'); 
-                deleteBtn.dataset.code = code; 
-                li.appendChild(deleteBtn); 
-                
-                couponListULElement.appendChild(li);
+                const codeSpan = document.createElement('span'); codeSpan.textContent = code; li.appendChild(codeSpan);
+                const deleteBtn = document.createElement('button'); deleteBtn.textContent = '삭제';
+                deleteBtn.classList.add('delete-item-btn'); deleteBtn.dataset.code = code; 
+                li.appendChild(deleteBtn); couponListULElement.appendChild(li);
             });
             console.log("All coupon items rendered.");
         }
         console.log("--- renderCouponList finished ---");
     }
-
-    function saveCoupons() { 
-        localStorage.setItem('couponScanner_coupons', JSON.stringify(coupons)); 
+    function saveCoupons() { /* ... 이전 코드와 동일 (최적화된 삭제 로직 유지) ... */ 
+         localStorage.setItem('couponScanner_coupons', JSON.stringify(coupons)); 
         console.log("Coupons saved to localStorage.");
     }
-    function loadCoupons() {
+    function loadCoupons() { /* ... 이전 코드와 동일 (최적화된 삭제 로직 유지) ... */ 
         const savedCoupons = localStorage.getItem('couponScanner_coupons');
         if (savedCoupons) { coupons = JSON.parse(savedCoupons); }
-        renderCouponList(); // 로드 후 바로 렌더링
+        renderCouponList(); 
         console.log("Coupons loaded from localStorage.");
     }
-    function updateCouponCount() { 
+    function updateCouponCount() { /* ... 이전 코드와 동일 (최적화된 삭제 로직 유지) ... */ 
         couponCountElement.textContent = `(${coupons.length}개)`; 
         console.log("Coupon count updated to:", coupons.length);
     }
+    function getFormattedCouponText() { /* ... 이전 코드와 동일 (최적화된 삭제 로직 유지) ... */ 
+        if (coupons.length === 0) return "저장된 쿠폰이 없습니다.";
+        return "저장된 쿠폰 목록:\n" + coupons.join("\n");
+    }
+    function copyAllCouponsToClipboard() { /* ... 이전 코드와 동일 (최적화된 삭제 로직 유지) ... */ }
+    async function shareAllCoupons() { /* ... 이전 코드와 동일 (최적화된 삭제 로직 유지) ... */ }
+    function exportCouponsAsTextFile() { /* ... 이전 코드와 동일 (최적화된 삭제 로직 유지) ... */ }
 
-    // --- 내보내기/공유 기능 (이전과 동일) ---
-    function getFormattedCouponText() { /* ... */ return "저장된 쿠폰 목록:\n" + coupons.join("\n"); }
-    function copyAllCouponsToClipboard() { /* ... */ }
-    async function shareAllCoupons() { /* ... */ }
-    function exportCouponsAsTextFile() { /* ... */ }
-
-    // --- 앱 시작 ---
     initialize();
 });
