@@ -58,24 +58,24 @@ header h1 {
     box-sizing: border-box;
 }
 
-/* === 카메라 전체 영역 크기 대폭 축소 === */
+/* === 카메라 전체 영역 스타일 수정 === */
 .scanner-area {
     position: relative;
-    width: 50%; /* 컨테이너의 50% 너비로 대폭 줄임 (기존 70%) */
-    height:360px;
+    width: 50%; /* 컨테이너 너비의 50% (사용자 요청에 따라 더 줄임) */
+    /* height:360px; <-- 제거! */
     margin: 0 auto 15px auto; 
-    background-color: #000; 
+    background-color: #111; /* 비디오 로딩 중 배경색 */
     border-radius: 8px; 
     overflow: hidden; 
 }
 
 #camera-feed {
     display: block; 
-    width: 50%; 
-    height: 100%; 
+    width: 100%; /* 부모(.scanner-area) 너비에 100% 맞춤 */
+    height: auto; /* 비디오 원본 비율에 맞춰 높이 자동 조절 */
     border-radius: inherit; 
 }
-/* === 카메라 전체 영역 크기 대폭 축소 끝 === */
+/* === 카메라 전체 영역 스타일 수정 끝 === */
 
 .scan-window-overlay {
     position: absolute;
@@ -90,8 +90,8 @@ header h1 {
 }
 
 .scan-window {
-    width: 90%;   /* 이 값은 .scanner-area 너비의 90% */
-    height: 20%;  /* 이 값은 .scanner-area 높이의 20% */
+    width: 90%;   
+    height: 20%; /* 이 값은 .scanner-area의 (유동적인) 높이에 대한 비율 */
     border: 3px solid rgba(255, 255, 255, 0.8);
     box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.5); 
     border-radius: 5px;
@@ -226,7 +226,6 @@ footer {
     color: #7f8c8d;
 }
 
-/* 모바일 화면 고려 */
 @media (max-width: 480px) {
     .container {
         margin: 0;
@@ -240,6 +239,6 @@ footer {
         padding: 12px 15px; 
     }
     .scanner-area { 
-        width: 75%; /* 모바일에서는 데스크톱(50%)보다 약간 더 넓게 (기존 90%) */
+        width: 75%; /* 모바일에서는 너비를 75%로 설정 */
     }
 }
