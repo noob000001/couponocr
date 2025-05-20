@@ -13,7 +13,7 @@ body {
 
 .container {
     width: 100%;
-    max-width: 600px;
+    max-width: 600px; /* 이 너비를 기준으로 내부 요소 크기 결정 */
     background-color: #fff;
     padding: 15px;
     box-shadow: 0 0 15px rgba(0,0,0,0.1);
@@ -51,26 +51,27 @@ header h1 {
     font-weight: bold;
 }
 .settings input[type="text"], .settings select {
-    width: calc(100% - 12px); /* padding 고려 */
+    width: calc(100% - 12px); 
     padding: 6px;
     border: 1px solid #bdc3c7;
     border-radius: 4px;
     box-sizing: border-box;
 }
 
-
+/* === 카메라 전체 영역 크기 수정 === */
 .scanner-area {
     position: relative;
-    width: 100%;
+    width: 70%; /* 컨테이너의 70% 너비로 줄임 (기존 100%) */
+    margin: 0 auto 15px auto; /* 가운데 정렬 및 하단 여백 유지 */
     background-color: #000;
-    margin-bottom: 15px;
     border-radius: 5px;
     overflow: hidden; 
 }
+/* === 카메라 전체 영역 크기 수정 끝 === */
 
 #camera-feed {
     display: block; 
-    width: 100%;
+    width: 100%; /* 부모인 .scanner-area의 너비에 맞춤 */
     height: auto; 
     border-radius: 5px; 
 }
@@ -86,13 +87,15 @@ header h1 {
     align-items: center;
 }
 
+/* === 스캔 창 높이 수정 === */
 .scan-window {
-    width: 90%;   /* 스캔 창 가로 크기 */
-    height: 35%;  /* 스캔 창 세로 크기 (직사각형 강조) */
+    width: 90%;   /* 스캔 창 가로 크기 (scanner-area 너비의 90%) */
+    height: 20%;  /* 스캔 창 세로 크기 (scanner-area 높이의 20%로 줄임, 기존 35%) */
     border: 3px solid rgba(255, 255, 255, 0.8);
-    box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.5); /* 딤처리 효과 */
+    box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.5); 
     border-radius: 5px;
 }
+/* === 스캔 창 높이 수정 끝 === */
 
 .controls {
     text-align: center;
@@ -237,5 +240,9 @@ footer {
     }
     button {
         padding: 12px 15px; 
+    }
+    /* 모바일에서는 카메라 영역을 다시 조금 더 넓게 (선택적) */
+    .scanner-area {
+        width: 90%; 
     }
 }
