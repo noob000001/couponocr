@@ -13,7 +13,7 @@ body {
 
 .container {
     width: 100%;
-    max-width: 600px; /* 이 너비를 기준으로 내부 요소 크기 결정 */
+    max-width: 600px; 
     background-color: #fff;
     padding: 15px;
     box-shadow: 0 0 15px rgba(0,0,0,0.1);
@@ -58,23 +58,25 @@ header h1 {
     box-sizing: border-box;
 }
 
-/* === 카메라 전체 영역 크기 수정 === */
+/* === 카메라 전체 영역 크기 및 비율 수정 === */
 .scanner-area {
     position: relative;
-    width: 70%; /* 컨테이너의 70% 너비로 줄임 (기존 100%) */
-    margin: 0 auto 15px auto; /* 가운데 정렬 및 하단 여백 유지 */
+    width: 60%; /* 컨테이너의 60% 너비로 더 줄임 (기존 70%) */
+    aspect-ratio: 1 / 1; /* 가로세로 비율을 1:1 (정사각형)으로 고정 */
+    margin: 0 auto 15px auto; 
     background-color: #000;
-    border-radius: 5px;
-    overflow: hidden; 
+    border-radius: 8px; /* 테두리 둥글게 */
+    overflow: hidden; /* 내부 비디오가 넘치면 잘라냄 */
 }
-/* === 카메라 전체 영역 크기 수정 끝 === */
 
 #camera-feed {
     display: block; 
-    width: 100%; /* 부모인 .scanner-area의 너비에 맞춤 */
-    height: auto; 
-    border-radius: 5px; 
+    width: 100%;
+    height: 100%; /* 부모인 .scanner-area를 꽉 채움 */
+    object-fit: cover; /* 비율 유지하며 꽉 채우고, 넘치는 부분은 잘림 */
+    border-radius: inherit; /* 부모의 border-radius 상속 */
 }
+/* === 카메라 전체 영역 크기 및 비율 수정 끝 === */
 
 .scan-window-overlay {
     position: absolute;
@@ -87,15 +89,13 @@ header h1 {
     align-items: center;
 }
 
-/* === 스캔 창 높이 수정 === */
 .scan-window {
-    width: 90%;   /* 스캔 창 가로 크기 (scanner-area 너비의 90%) */
-    height: 20%;  /* 스캔 창 세로 크기 (scanner-area 높이의 20%로 줄임, 기존 35%) */
+    width: 90%;   
+    height: 20%; 
     border: 3px solid rgba(255, 255, 255, 0.8);
     box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.5); 
     border-radius: 5px;
 }
-/* === 스캔 창 높이 수정 끝 === */
 
 .controls {
     text-align: center;
@@ -138,7 +138,6 @@ button:disabled {
 #delete-all-btn:hover {
     background-color: #c0392b;
 }
-
 
 .result-area, .coupon-list-area {
     background-color: #f9f9f9;
@@ -209,7 +208,6 @@ button:disabled {
     background-color: #c0392b;
 }
 
-
 .export-share-buttons {
     margin-top: 15px;
     text-align: center;
@@ -228,7 +226,6 @@ footer {
     color: #7f8c8d;
 }
 
-/* 모바일 화면 고려 */
 @media (max-width: 480px) {
     .container {
         margin: 0;
@@ -241,8 +238,7 @@ footer {
     button {
         padding: 12px 15px; 
     }
-    /* 모바일에서는 카메라 영역을 다시 조금 더 넓게 (선택적) */
-    .scanner-area {
-        width: 90%; 
+    .scanner-area { /* 모바일에서는 너비를 조금 더 확보 */
+        width: 80%; 
     }
 }
