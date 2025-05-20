@@ -71,7 +71,7 @@ header h1 {
 #camera-feed {
     display: block; 
     width: 50%; 
-    height: auto; 
+    height: 720px; 
     border-radius: inherit; 
 }
 /* === 카메라 전체 영역 크기 대폭 축소 끝 === */
