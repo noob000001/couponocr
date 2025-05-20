@@ -1,187 +1,72 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>쿠폰 코드 OCR 인식기</title>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
-  <style>
-    body { font-family: sans-serif; padding: 15px; max-width: 640px; margin: auto; }
-    canvas { width: 100%; border: 2px solid #4CAF50; border-radius: 6px; margin-bottom: 10px; touch-action: none; }
-    .controls { margin-bottom: 10px; }
-    button, select { margin: 5px 5px 5px 0; padding: 8px 12px; font-size: 1em; }
-    .code-card { border: 1px solid #ccc; background: #f9f9f9; padding: 10px; margin-bottom: 8px; border-radius: 6px; }
-    .code-card input { width: 75%; font-size: 1em; }
-    .meta { font-size: 0.9em; color: #555; }
-    #status {
-      white-space: pre-line; margin: 10px 0; padding: 10px;
-      border: 1px solid #ccc; border-radius: 6px; background: #f4f4f4;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>쿠폰 번호 스캐너</title>
+    <link rel="stylesheet" href="style.css">
+    <script src='https://unpkg.com/tesseract.js@5/dist/tesseract.min.js'></script>
 </head>
 <body>
-  <h2>📷 쿠폰 코드 OCR 인식기</h2>
-  <p>화면을 드래그해서 코드가 있는 영역을 선택하세요. 자릿수도 꼭 설정해주세요.</p>
-  <video id="preview" autoplay playsinline muted style="display:none;"></video>
-  <canvas id="canvas" width="1280" height="720"></canvas>
+    <div class="container">
+        <header>
+            <h1>쿠폰 번호 스캐너 🎟️</h1>
+            <div class="settings">
+                <div>
+                    <label for="coupon-length">쿠폰 자릿수 (예: 12 또는 8-16):</label>
+                    <input type="text" id="coupon-length" value="8-16">
+                </div>
+                <div>
+                    <label for="recognition-mode">인식 모드:</label>
+                    <select id="recognition-mode">
+                        <option value="manual" selected>👆 수동 촬영</option>
+                        <option value="auto">🤖 자동 인식 (준비 중)</option>
+                    </select>
+                </div>
+            </div>
+        </header>
 
-  <div class="controls">
-    자릿수:
-    <select id="lengthSelect">
-      ${[...Array(9)].map((_, i) => `<option value="${i + 8}">${i + 8}자리</option>`).join('')}
-    </select>
-    <button onclick="exportCodes()">Export</button>
-    <button onclick="copyToClipboard()">Copy</button>
-    <button onclick="shareCodes()">Share</button>
-  </div>
+        <main>
+            <div class="scanner-area">
+                <video id="camera-feed" playsinline autoplay muted></video>
+                <div class="scan-window-overlay">
+                    <div class="scan-window"></div>
+                </div>
+                <canvas id="capture-canvas" style="display:none;"></canvas>
+            </div>
 
-  <div id="status">⏳ 준비 중...</div>
-  <div id="code-list"></div>
+            <div class="controls">
+                <button id="capture-btn">쿠폰 읽기 📸</button>
+                <button id="auto-capture-toggle-btn" style="display:none;">자동 인식 시작 ▶️</button>
+            </div>
 
-  <script>
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
-    const statusDiv = document.getElementById("status");
-    const codeListDiv = document.getElementById("code-list");
-    const lengthSelect = document.getElementById("lengthSelect");
-    const video = document.getElementById("preview");
-    const codeMap = new Map();
-    let startX = null, startY = null, endX = null, endY = null, dragging = false;
+            <div class="result-area">
+                <h2>인식된 번호 후보:</h2>
+                <p id="ocr-status">카메라를 준비 중입니다...</p>
+                <div id="temp-result-display">
+                    <span id="recognized-code-candidate"></span>
+                    <button id="add-to-list-btn" style="display:none;">이 번호로 목록에 추가</button>
+                </div>
+            </div>
 
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-      .then(stream => {
-        video.srcObject = stream;
-        video.play();
-        requestAnimationFrame(drawFrame);
-        setStatus("✅ 카메라 연결됨. 영역을 드래그하세요.");
-      })
-      .catch(err => setStatus("❌ 카메라 접근 실패: " + err.message));
+            <div class="coupon-list-area">
+                <h2>저장된 쿠폰 목록 <span id="coupon-count">(0개)</span></h2>
+                <ul id="coupon-list">
+                    </ul>
+                <div class="export-share-buttons">
+                    <button id="copy-all-btn">📋 전체 목록 클립보드 복사</button>
+                    <button id="share-all-btn">📲 전체 목록 공유하기</button>
+                    <button id="export-txt-btn">💾 .txt 파일로 저장</button>
+                    <button id="delete-all-btn">🗑️ 전체 목록 삭제</button>
+                </div>
+            </div>
+        </main>
 
-    function setStatus(text) { statusDiv.innerText = text; }
+        <footer>
+            <p>AI와 함께 만드는 쿠폰 스캐너</p>
+        </footer>
+    </div>
 
-    function getCoords(e) {
-      const rect = canvas.getBoundingClientRect();
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-      const touch = e.touches ? e.touches[0] : e;
-      return {
-        x: (touch.clientX - rect.left) * scaleX,
-        y: (touch.clientY - rect.top) * scaleY
-      };
-    }
-
-    function beginDrag(e) {
-      const { x, y } = getCoords(e);
-      startX = x; startY = y; dragging = true;
-    }
-
-    function updateDrag(e) {
-      if (!dragging) return;
-      const { x, y } = getCoords(e);
-      endX = x; endY = y;
-    }
-
-    function endDrag() {
-      dragging = false;
-      if (startX && endX) setTimeout(runOCR, 300);
-    }
-
-    canvas.addEventListener("mousedown", beginDrag);
-    canvas.addEventListener("mousemove", updateDrag);
-    canvas.addEventListener("mouseup", endDrag);
-    canvas.addEventListener("touchstart", beginDrag, { passive: false });
-    canvas.addEventListener("touchmove", updateDrag, { passive: false });
-    canvas.addEventListener("touchend", endDrag);
-
-    function drawFrame() {
-      if (video.readyState >= 2) {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        if (startX != null && endX != null) {
-          ctx.strokeStyle = "red";
-          ctx.lineWidth = 2;
-          ctx.strokeRect(startX, startY, endX - startX, endY - startY);
-        }
-      }
-      requestAnimationFrame(drawFrame);
-    }
-
-    function runOCR() {
-      if (!startX || !endX || !startY || !endY) return;
-      const w = endX - startX, h = endY - startY;
-      if (w <= 0 || h <= 0) return setStatus("❗ 잘못된 영역입니다.");
-
-      const crop = ctx.getImageData(startX, startY, w, h);
-      const temp = document.createElement("canvas");
-      temp.width = w; temp.height = h;
-      temp.getContext("2d").putImageData(crop, 0, 0);
-      const img = temp.toDataURL("image/png");
-
-      setStatus("📸 OCR 처리 중...");
-
-      Tesseract.recognize(img, "eng", {
-        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890",
-        psm: 7
-      }).then(result => {
-        const text = result.data.text.trim();
-        const len = parseInt(lengthSelect.value);
-        const regex = new RegExp(`\\b[A-Z0-9]{${len}}\\b`, "g");
-        const matches = text.match(regex);
-        setStatus(`🧠 OCR 결과:\n${text}`);
-        if (matches) {
-          matches.forEach(code => {
-            if (![...codeMap.values()].includes(code)) {
-              const key = new Date().toISOString().replace(/[-:.TZ]/g, "");
-              codeMap.set(`${key}_${codeMap.size}`, code);
-              renderCodes();
-            }
-          });
-        } else {
-          setStatus("⚠️ 코드 인식 실패. 다시 시도해주세요.");
-        }
-      }).catch(err => setStatus("❌ OCR 오류: " + err.message));
-    }
-
-    function renderCodes() {
-      codeListDiv.innerHTML = "";
-      [...codeMap.entries()].reverse().forEach(([key, code]) => {
-        const div = document.createElement("div");
-        div.className = "code-card";
-        const meta = document.createElement("div");
-        meta.className = "meta";
-        meta.textContent = key;
-        const input = document.createElement("input");
-        input.value = code;
-        input.onchange = () => codeMap.set(key, input.value);
-        const del = document.createElement("button");
-        del.textContent = "🗑";
-        del.onclick = () => { codeMap.delete(key); renderCodes(); };
-        div.appendChild(meta); div.appendChild(input); div.appendChild(del);
-        codeListDiv.appendChild(div);
-      });
-    }
-
-    function exportCodes() {
-      const text = [...codeMap.entries()].map(([k, c]) => `${k} : ${c}`).join("\n");
-      const blob = new Blob([text], { type: "text/plain" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = "coupon_codes.txt";
-      link.click();
-    }
-
-    function copyToClipboard() {
-      const text = [...codeMap.entries()].map(([k, c]) => `${k} : ${c}`).join("\n");
-      navigator.clipboard.writeText(text).then(() => alert("📋 복사 완료"));
-    }
-
-    function shareCodes() {
-      const text = [...codeMap.entries()].map(([k, c]) => `${k} : ${c}`).join("\n");
-      if (navigator.share) {
-        navigator.share({ title: "쿠폰 코드", text });
-      } else {
-        alert("이 브라우저는 공유 기능을 지원하지 않습니다.");
-      }
-    }
-  </script>
+    <script src="script.js"></script>
 </body>
 </html>
