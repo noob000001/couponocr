@@ -86,15 +86,13 @@ header h1 {
     align-items: center;
 }
 
-/* === 스캔 창 모양 변경 === */
 .scan-window {
-    width: 90%;   /* 스캔 창 가로 크기 (조금 더 넓게) */
-    height: 35%;  /* 스캔 창 세로 크기 (더 납작하게 하여 직사각형 강조) */
+    width: 90%;   /* 스캔 창 가로 크기 */
+    height: 35%;  /* 스캔 창 세로 크기 (직사각형 강조) */
     border: 3px solid rgba(255, 255, 255, 0.8);
     box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.5); /* 딤처리 효과 */
     border-radius: 5px;
 }
-/* === 스캔 창 모양 변경 끝 === */
 
 .controls {
     text-align: center;
