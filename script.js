@@ -23,7 +23,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const exportTxtBtn = document.getElementById('export-txt-btn');
     const deleteAllBtn = document.getElementById('delete-all-btn');
 
-    // --- 전역 변수 및 상태 ---
     let localStream = null;
     let tesseractScheduler = null; 
     let tesseractWorkersCount = 1; 
@@ -31,8 +30,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentCandidateCode = null;
     const TESS_WHITELIST = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-';
 
-
-    // --- 초기화 함수 ---
     async function initialize() {
         ocrStatusElement.textContent = 'OCR 엔진을 로드 중입니다...';
         if (ocrRawDebugOutputElement) ocrRawDebugOutputElement.textContent = '';
@@ -64,7 +61,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- 카메라 설정 ---
     async function setupCamera() {
         try {
             if (localStream) { 
@@ -91,7 +87,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- 설정 로드 및 저장 ---
     function loadSettings() {
         const savedLength = localStorage.getItem('couponScanner_couponLength');
         if (savedLength) couponLengthInput.value = savedLength;
@@ -104,7 +99,6 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('couponScanner_couponFormat', couponFormatSelect.value);
     }
 
-    // --- 이벤트 리스너 설정 ---
     function setupEventListeners() {
         captureBtn.addEventListener('click', handleManualCapture);
         addToListBtn.addEventListener('click', addCandidateToList);
@@ -125,16 +119,44 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- 수동 캡처 처리 (ROI 처리 로직은 이전과 동일하게 유지, CSS 변경으로 화면 표시가 달라짐) ---
+    // === object-fit: contain 상태에서 실제 비디오 영역 계산 함수 ===
+    function getContainedVideoDimensions(videoElement) {
+        const videoIntrinsicWidth = videoElement.videoWidth;
+        const videoIntrinsicHeight = videoElement.videoHeight;
+        const videoElemClientWidth = videoElement.clientWidth; // CSS에 의해 결정된 요소의 너비
+        const videoElemClientHeight = videoElement.clientHeight; // CSS에 의해 결정된 요소의 높이
+
+        const videoAspectRatio = videoIntrinsicWidth / videoIntrinsicHeight;
+        const elemAspectRatio = videoElemClientWidth / videoElemClientHeight;
+
+        let renderWidth, renderHeight, xOffset, yOffset;
+
+        if (videoAspectRatio > elemAspectRatio) { // 비디오가 요소보다 넓은 경우 (위아래 레터박스)
+            renderWidth = videoElemClientWidth;
+            renderHeight = videoElemClientWidth / videoAspectRatio;
+            xOffset = 0;
+            yOffset = (videoElemClientHeight - renderHeight) / 2;
+        } else { // 비디오가 요소보다 길거나 같은 비율인 경우 (좌우 레터박스 또는 꽉 참)
+            renderHeight = videoElemClientHeight;
+            renderWidth = videoElemClientHeight * videoAspectRatio;
+            yOffset = 0;
+            xOffset = (videoElemClientWidth - renderWidth) / 2;
+        }
+        return {
+            x: xOffset, // 비디오 요소 내 실제 그려지는 영상의 시작 X 오프셋
+            y: yOffset, // 비디오 요소 내 실제 그려지는 영상의 시작 Y 오프셋
+            width: renderWidth, // 실제 그려지는 영상의 너비
+            height: renderHeight // 실제 그려지는 영상의 높이
+        };
+    }
+    // === 함수 끝 ===
+
     async function handleManualCapture() {
         if (!localStream || !videoElement.srcObject || videoElement.readyState < videoElement.HAVE_METADATA) {
-            ocrStatusElement.textContent = '카메라가 준비되지 않았습니다. 잠시 후 다시 시도해주세요.';
-            return;
+            ocrStatusElement.textContent = '카메라가 준비되지 않았습니다.'; return;
         }
         if (!tesseractScheduler || tesseractScheduler.getNumWorkers() === 0) { 
-            ocrStatusElement.textContent = 'OCR 엔진이 준비되지 않았습니다. 페이지를 새로고침 해주세요.';
-            console.warn("OCR 스케줄러 또는 워커 문제");
-            return;
+            ocrStatusElement.textContent = 'OCR 엔진 준비 중...'; return;
         }
         
         captureBtn.disabled = true;
@@ -144,46 +166,46 @@ document.addEventListener('DOMContentLoaded', () => {
         if (ocrRawDebugOutputElement) ocrRawDebugOutputElement.textContent = '';
 
         try {
-            const videoRenderedWidth = videoElement.offsetWidth;
-            const videoRenderedHeight = videoElement.offsetHeight;
+            // === 실제 비디오가 그려지는 영역과 스케일 계산 (수정된 로직) ===
+            const renderedVideo = getContainedVideoDimensions(videoElement);
+
             const videoIntrinsicWidth = videoElement.videoWidth;
             const videoIntrinsicHeight = videoElement.videoHeight;
 
-            const scaleX = videoIntrinsicWidth / videoRenderedWidth;
-            const scaleY = videoIntrinsicHeight / videoRenderedHeight;
+            // 스캔 창의 화면상 위치와 크기 (videoElement 기준)
+            const videoElemRect = videoElement.getBoundingClientRect(); // videoElement의 화면상 위치/크기
+            const scanWindowRect = scanWindow.getBoundingClientRect();  // 스캔 창 테두리의 화면상 위치/크기
 
-            const overlayRect = scanWindowOverlay.getBoundingClientRect();
-            const scanWindowRect = scanWindow.getBoundingClientRect();
+            // videoElement 내부의 실제 비디오 영역 기준, 스캔 창의 상대적 시작 위치 (비율)
+            // (스캔 창의 시작점 - 비디오 요소의 시작점 - 레터박스 오프셋) / 실제 비디오 너비(높이)
+            const scanX_relative_to_video_content_start = (scanWindowRect.left - videoElemRect.left - renderedVideo.x) / renderedVideo.width;
+            const scanY_relative_to_video_content_start = (scanWindowRect.top - videoElemRect.top - renderedVideo.y) / renderedVideo.height;
 
-            const cropVisualX = scanWindowRect.left - overlayRect.left;
-            const cropVisualY = scanWindowRect.top - overlayRect.top;
-            const cropVisualWidth = scanWindowRect.width;
-            const cropVisualHeight = scanWindowRect.height;
-            
-            const finalCropX = cropVisualX * scaleX;
-            const finalCropY = cropVisualY * scaleY;
-            const finalCropWidth = cropVisualWidth * scaleX;
-            const finalCropHeight = cropVisualHeight * scaleY;
+            // 스캔 창의 크기 (실제 비디오 영역 대비 비율)
+            const scanWidth_relative_to_video_content = scanWindowRect.width / renderedVideo.width;
+            const scanHeight_relative_to_video_content = scanWindowRect.height / renderedVideo.height;
 
-            if (finalCropWidth <= 0 || finalCropHeight <= 0 || finalCropX < 0 || finalCropY < 0 || (finalCropX + finalCropWidth > videoIntrinsicWidth) || (finalCropY + finalCropHeight > videoIntrinsicHeight)) {
-                console.error("잘라낼 영역 계산 오류:", {finalCropX, finalCropY, finalCropWidth, finalCropHeight, videoIntrinsicWidth, videoIntrinsicHeight});
-                throw new Error("스캔 창 영역 계산 오류. 페이지를 새로고침하거나 카메라를 확인하세요.");
+            // 원본 비디오 해상도에서 잘라낼 소스(source) 영역 계산
+            const sx = videoIntrinsicWidth * scanX_relative_to_video_content_start;
+            const sy = videoIntrinsicHeight * scanY_relative_to_video_content_start;
+            const sWidth = videoIntrinsicWidth * scanWidth_relative_to_video_content;
+            const sHeight = videoIntrinsicHeight * scanHeight_relative_to_video_content;
+
+            // 잘라낼 영역이 유효한지 최종 확인
+            if (sWidth <= 0 || sHeight <= 0 || sx < 0 || sy < 0 || (sx + sWidth > videoIntrinsicWidth) || (sy + sHeight > videoIntrinsicHeight)) {
+                 console.error("최종 잘라낼 영역 계산 오류 또는 스캔창이 비디오 영역 바깥에 위치:", {sx, sy, sWidth, sHeight, videoIntrinsicWidth, videoIntrinsicHeight});
+                 throw new Error("스캔 창 영역이 비디오 범위를 벗어났습니다. 스캔 창 크기나 위치를 확인하세요.");
             }
             
-            captureCanvas.width = finalCropWidth;
-            captureCanvas.height = finalCropHeight;
+            captureCanvas.width = sWidth; // 캔버스 크기를 잘라낼 이미지 크기로 설정
+            captureCanvas.height = sHeight;
             const context = captureCanvas.getContext('2d');
             context.drawImage(
                 videoElement,    
-                finalCropX,      
-                finalCropY,      
-                finalCropWidth,  
-                finalCropHeight, 
-                0,               
-                0,               
-                finalCropWidth,  
-                finalCropHeight  
+                sx, sy, sWidth, sHeight, // 소스 사각형 (원본 비디오에서)
+                0, 0, sWidth, sHeight    // 대상 사각형 (캔버스에서)
             );
+            // === 잘라내기 로직 수정 끝 ===
             
             const imageDataUrl = captureCanvas.toDataURL('image/png');
             ocrStatusElement.textContent = '쿠폰 번호 인식 중... 잠시만 기다려주세요.';
@@ -200,7 +222,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- OCR 결과 처리 ---
     function processOCRResult(rawText) {
         ocrStatusElement.textContent = '인식 완료. 결과 분석 중...';
         console.log("원본 OCR 텍스트:", rawText);
@@ -254,7 +275,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- 쿠폰 목록 관리 ---
     function addCandidateToList() {
         if (currentCandidateCode && !coupons.includes(currentCandidateCode)) {
             coupons.push(currentCandidateCode);
@@ -338,7 +358,6 @@ document.addEventListener('DOMContentLoaded', () => {
         couponCountElement.textContent = `(${coupons.length}개)`;
     }
 
-    // --- 내보내기/공유 기능 ---
     function getFormattedCouponText() {
         if (coupons.length === 0) return "저장된 쿠폰이 없습니다.";
         return "저장된 쿠폰 목록:\n" + coupons.join("\n");
@@ -411,6 +430,5 @@ document.addEventListener('DOMContentLoaded', () => {
         ocrStatusElement.textContent = `${filename} 파일이 다운로드되었습니다.`;
     }
 
-    // --- 앱 시작 ---
     initialize();
 });
