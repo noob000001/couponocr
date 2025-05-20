@@ -1,0 +1,244 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f7f6;
+    color: #333;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+    line-height: 1.6;
+}
+
+.container {
+    width: 100%;
+    max-width: 600px;
+    background-color: #fff;
+    padding: 15px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.1);
+    margin: 10px;
+    border-radius: 8px;
+}
+
+header {
+    text-align: center;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 15px;
+    margin-bottom: 20px;
+}
+
+header h1 {
+    margin-top: 0;
+    color: #2c3e50;
+}
+
+.settings {
+    font-size: 0.9em;
+    background-color: #ecf0f1;
+    padding: 10px;
+    border-radius: 5px;
+    margin-top: 10px;
+    text-align: left;
+}
+
+.settings div {
+    margin-bottom: 8px;
+}
+.settings label {
+    display: inline-block;
+    margin-bottom: 4px;
+    font-weight: bold;
+}
+.settings input[type="text"], .settings select {
+    width: calc(100% - 12px); /* padding 고려 */
+    padding: 6px;
+    border: 1px solid #bdc3c7;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+
+.scanner-area {
+    position: relative;
+    width: 100%;
+    /* 가로세로 비율을 위한 패딩 트릭 (예: 4:3 비율) */
+    /* padding-top: 75%;  비디오 크기에 따라 조절 필요 */
+    background-color: #000;
+    margin-bottom: 15px;
+    border-radius: 5px;
+    overflow: hidden; /* 스캔창이 넘치지 않도록 */
+}
+
+#camera-feed {
+    display: block; /* block으로 해야 width 100%가 잘 적용됨 */
+    width: 100%;
+    height: auto; /* 자동 높이 조절 */
+    border-radius: 5px; /* scanner-area에 맞춤 */
+}
+
+.scan-window-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.scan-window {
+    width: 85%; /* 스캔 창 가로 크기 */
+    height: 50%; /* 스캔 창 세로 크기 */
+    border: 3px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.5); /* 딤처리 효과 */
+    border-radius: 5px;
+}
+
+
+.controls {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+button {
+    background-color: #3498db;
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    margin: 5px;
+    transition: background-color 0.3s ease;
+}
+
+button:hover {
+    background-color: #2980b9;
+}
+
+button:disabled {
+    background-color: #bdc3c7;
+    cursor: not-allowed;
+}
+
+#add-to-list-btn {
+    background-color: #2ecc71;
+}
+#add-to-list-btn:hover {
+    background-color: #27ae60;
+}
+#delete-all-btn {
+    background-color: #e74c3c;
+}
+#delete-all-btn:hover {
+    background-color: #c0392b;
+}
+
+
+.result-area, .coupon-list-area {
+    background-color: #f9f9f9;
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+    border: 1px solid #ecf0f1;
+}
+
+.result-area h2, .coupon-list-area h2 {
+    margin-top: 0;
+    font-size: 1.2em;
+    color: #34495e;
+    border-bottom: 1px solid #e0e0e0;
+    padding-bottom: 8px;
+    margin-bottom: 10px;
+}
+
+#ocr-status {
+    font-style: italic;
+    color: #7f8c8d;
+    margin-bottom: 10px;
+}
+
+#temp-result-display {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px;
+    background-color: #e9ecef;
+    border-radius: 4px;
+    min-height: 30px;
+}
+#recognized-code-candidate {
+    font-weight: bold;
+    color: #2c3e50;
+    word-break: break-all;
+}
+
+#coupon-list {
+    list-style-type: none;
+    padding: 0;
+}
+
+#coupon-list li {
+    background-color: #fff;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    word-break: break-all;
+}
+
+#coupon-list li .delete-item-btn {
+    background-color: #e74c3c;
+    color: white;
+    border: none;
+    padding: 5px 8px;
+    font-size: 0.8em;
+    border-radius: 3px;
+    cursor: pointer;
+    margin-left: 10px;
+}
+#coupon-list li .delete-item-btn:hover {
+    background-color: #c0392b;
+}
+
+
+.export-share-buttons {
+    margin-top: 15px;
+    text-align: center;
+}
+.export-share-buttons button {
+    font-size: 0.9em;
+    padding: 8px 12px;
+}
+
+footer {
+    text-align: center;
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #eee;
+    font-size: 0.8em;
+    color: #7f8c8d;
+}
+
+/* 모바일 화면 고려 */
+@media (max-width: 480px) {
+    .container {
+        margin: 0;
+        padding: 10px;
+        border-radius: 0;
+    }
+    header h1 {
+        font-size: 1.5em;
+    }
+    button {
+        padding: 12px 15px; /* 버튼 크기 살짝 키움 */
+    }
+}
