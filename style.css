@@ -58,24 +58,23 @@ header h1 {
     box-sizing: border-box;
 }
 
-/* === 카메라 전체 영역 스타일 수정: 크기 증가 및 비율 조정 === */
+/* === 카메라 전체 영역 스타일 수정: 크기 증가 및 비율 고정 === */
 .scanner-area {
     position: relative;
-    width: 65%; /* 데스크톱 기준 너비 (50% * 1.3 = 65%) */
-    aspect-ratio: 4 / 3; /* 일반적인 카메라 비율로 고정 (높이 자동 결정) */
-    /* max-height 제거 */
+    width: 65%; /* 데스크톱 기준 너비 (50%에서 약 30% 증가) */
+    aspect-ratio: 4 / 3; /* 가로세로 비율 4:3으로 고정 */
+    /* max-height 속성 제거 */
     margin: 0 auto 15px auto; 
     background-color: #000; 
     border-radius: 8px; 
     overflow: hidden; 
-    /* display: flex 관련 속성 제거하고 기본 block으로 */
 }
 
 #camera-feed {
     display: block; 
     width: 100%;  
-    height: 100%; 
-    object-fit: cover; /* .scanner-area(4:3 비율)를 채우도록, 필요시 일부 잘림 */
+    height: 100%; /* 부모 .scanner-area (4:3 비율)를 꽉 채움 */
+    object-fit: cover; /* 비율 유지하며 꽉 채우고, 넘치는 부분은 잘림 */
     border-radius: inherit; 
 }
 /* === 카메라 전체 영역 스타일 수정 끝 === */
@@ -93,8 +92,8 @@ header h1 {
 }
 
 .scan-window {
-    width: 90%;   
-    height: 20%;  /* 이 값은 .scanner-area의 (4:3 비율로 결정된) 높이에 대한 비율 */
+    width: 90%;   /* .scanner-area 너비의 90% */
+    height: 20%;  /* .scanner-area 높이(4:3 비율로 결정됨)의 20% */
     border: 3px solid rgba(255, 255, 255, 0.8);
     box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.5); 
     border-radius: 5px;
@@ -105,6 +104,7 @@ header h1 {
     margin-bottom: 20px;
 }
 
+/* ... (이하 나머지 CSS는 이전과 동일) ... */
 button {
     background-color: #3498db;
     color: white;
@@ -141,6 +141,7 @@ button:disabled {
 #delete-all-btn:hover {
     background-color: #c0392b;
 }
+
 
 .result-area, .coupon-list-area {
     background-color: #f9f9f9;
@@ -242,7 +243,6 @@ footer {
         padding: 12px 15px; 
     }
     .scanner-area { 
-        width: 95%; /* 모바일 너비 (75% * 1.3 ≈ 97.5%) */
+        width: 95%; /* 모바일에서는 너비를 95% (75%에서 약 30% 증가) */
     }
-    /* .scan-window height는 %이므로 부모 높이에 따라 자동 조절됨 */
 }
